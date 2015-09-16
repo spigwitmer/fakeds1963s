@@ -97,7 +97,7 @@ static void fakeds1963s_timer(unsigned long timer_data) {
     add_timer(f->timer);
 }
 
-static int fakeds1963s_open(struct tty_struct *tty, struct file *file) {
+static int fakeds1963s_open(struct tty_struct *tty, struct file *filp) {
     g_serial_info->open_count = 0;
     mutex_lock(&g_serial_info->m);
     tty->driver_data = g_serial_info;
@@ -121,7 +121,7 @@ static int fakeds1963s_open(struct tty_struct *tty, struct file *file) {
         add_timer(g_serial_info->timer);
     }
     mutex_unlock(&g_serial_info->m);
-    return 0;
+    return tty_port_open(tty->port, tty, filp);
 }
 
 static int fakeds1963s_write(struct tty_struct *tty, 
@@ -156,12 +156,13 @@ static int fakeds1963s_write(struct tty_struct *tty,
     return min(count, 1024);
 }
 
-static void fakeds1963s_close(struct tty_struct *tty, struct file *file) {
+static void fakeds1963s_close(struct tty_struct *tty, struct file *filp) {
     mutex_lock(&g_serial_info->m);
     if (g_serial_info->open_count > 0) {
         --g_serial_info->open_count;
     }
     mutex_unlock(&g_serial_info->m);
+    tty_port_close(tty->port, tty, filp);
 }
 
 static int fakeds1963s_write_room(struct tty_struct *tty) {
@@ -206,10 +207,10 @@ static int __init fakeds1963s_init(void) {
         kfree(g_serial_info);
         return -ENOMEM;
     }
-    fake_tty_driver->driver_name = "fakeds1963s";
+    fake_tty_driver->driver_name = "ttyfakeds1963s";
     fake_tty_driver->magic = TTY_DRIVER_MAGIC;
     fake_tty_driver->owner = THIS_MODULE;
-    fake_tty_driver->name = "ttybutnotreally";
+    fake_tty_driver->name = "tty1963s";
     fake_tty_driver->major = MAJOR(fakeds1963s_dev);
     fake_tty_driver->minor_start = 3;
     fake_tty_driver->type = TTY_DRIVER_TYPE_SERIAL;
