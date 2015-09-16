@@ -63,6 +63,7 @@ DECLARE_CRC8_TABLE(ds_crc8_table);
 
 typedef struct {
     struct tty_struct *tty;
+    struct tty_port port;
     int open_count;
     struct mutex m;
     struct timer_list *timer;
@@ -74,13 +75,8 @@ static _fake_serial_info *g_serial_info = NULL;
 
 static void fakeds1963s_timer(unsigned long timer_data) {
     _fake_serial_info *f = (_fake_serial_info *)timer_data;
-    struct tty_struct *tty;
-    struct tty_port *port;
     char *msg;
     int i, msglen;
-
-    tty = f->tty;
-    port = tty->port;
 
     // TODO examine the buffer written to in serial_info, flip it after parsing it
 
@@ -88,22 +84,23 @@ static void fakeds1963s_timer(unsigned long timer_data) {
     msglen = strlen(msg);
     for (i = 0; i < msglen; ++i) {
         // flip one round of our message to core
-        if (!tty_buffer_request_room(port, 1))
-            tty_flip_buffer_push(port);
-        tty_insert_flip_char(port, msg[i], TTY_NORMAL); 
+        if (!tty_buffer_request_room(&f->port, 1))
+            tty_flip_buffer_push(&f->port);
+        tty_insert_flip_char(&f->port, msg[i], TTY_NORMAL); 
     }
 
-    f->timer->expires = jiffies + DELAY_TIME;
-    add_timer(f->timer);
+    if (f->open_count > 0) {
+        f->timer->expires = jiffies + DELAY_TIME;
+        add_timer(f->timer);
+    }
 }
 
 static int fakeds1963s_open(struct tty_struct *tty, struct file *filp) {
-    g_serial_info->open_count = 0;
-    mutex_lock(&g_serial_info->m);
     tty->driver_data = g_serial_info;
-    g_serial_info->tty = tty;
+
     struct timer_list *timer;
 
+    mutex_lock(&g_serial_info->m);
     ++g_serial_info->open_count;
 
     if (g_serial_info->open_count == 1) {
@@ -114,14 +111,15 @@ static int fakeds1963s_open(struct tty_struct *tty, struct file *filp) {
                 return -ENOMEM;
             }
             g_serial_info->timer = timer;
+            g_serial_info->timer->data = (unsigned long)g_serial_info;
+            g_serial_info->timer->expires = jiffies + DELAY_TIME;
+            g_serial_info->timer->function = fakeds1963s_timer;
+            add_timer(g_serial_info->timer);
         }
-        g_serial_info->timer->data = (unsigned long)g_serial_info;
-        g_serial_info->timer->expires = jiffies + DELAY_TIME;
-        g_serial_info->timer->function = fakeds1963s_timer;
-        add_timer(g_serial_info->timer);
     }
     mutex_unlock(&g_serial_info->m);
-    return tty_port_open(tty->port, tty, filp);
+
+    return tty_port_open(&g_serial_info->port, tty, filp);
 }
 
 static int fakeds1963s_write(struct tty_struct *tty, 
@@ -131,10 +129,6 @@ static int fakeds1963s_write(struct tty_struct *tty,
         return -ENODEV;
     }
     mutex_lock(&g_serial_info->m);
-    if (g_serial_info->open_count == 0) {
-        mutex_unlock(&g_serial_info->m);
-        return -EINVAL;
-    }
     if (g_serial_info->buflen+count > g_serial_info->bufsize) {
         // expand the buffer
         int newsize = sizeof(u8) * (((g_serial_info->buflen+count)/1024) + 1) * 1024;
@@ -162,7 +156,7 @@ static void fakeds1963s_close(struct tty_struct *tty, struct file *filp) {
         --g_serial_info->open_count;
     }
     mutex_unlock(&g_serial_info->m);
-    tty_port_close(tty->port, tty, filp);
+    tty_port_close(&g_serial_info->port, tty, filp);
 }
 
 static int fakeds1963s_write_room(struct tty_struct *tty) {
@@ -192,6 +186,8 @@ static int __init fakeds1963s_init(void) {
     g_serial_info->buf = kmalloc(1024 * sizeof(u8), GFP_KERNEL);
     g_serial_info->bufsize = 1024;
     g_serial_info->buflen = 0;
+    g_serial_info->open_count = 0;
+    tty_port_init(&g_serial_info->port);
 
     ret = alloc_chrdev_region(&fakeds1963s_dev, 0, 1, "fakeds1963s");
     if (ret != 0) {
@@ -201,7 +197,14 @@ static int __init fakeds1963s_init(void) {
     printk(KERN_INFO "fakeds1963s: major is %d", MAJOR(fakeds1963s_dev));
 
     fake_tty_driver = tty_alloc_driver(1, 
-        TTY_DRIVER_REAL_RAW|TTY_DRIVER_UNNUMBERED_NODE|TTY_DRIVER_RESET_TERMIOS);
+        TTY_DRIVER_REAL_RAW
+        |TTY_DRIVER_RESET_TERMIOS
+        |TTY_DRIVER_UNNUMBERED_NODE);
+    if (IS_ERR(fake_tty_driver)) {
+        unregister_chrdev_region(fakeds1963s_dev, 1);
+        kfree(g_serial_info);
+        return PTR_ERR(fake_tty_driver);
+    }
     if (!fake_tty_driver) {
         unregister_chrdev_region(fakeds1963s_dev, 1);
         kfree(g_serial_info);
@@ -221,14 +224,13 @@ static int __init fakeds1963s_init(void) {
 	fake_tty_driver->init_termios.c_ispeed = 9600;
 	fake_tty_driver->init_termios.c_ospeed = 9600;
 	tty_set_operations(fake_tty_driver, &serial_ops);
-
+    tty_port_link_device(&g_serial_info->port, fake_tty_driver, 0);
     ret = tty_register_driver(fake_tty_driver);
     if (ret) {
         printk(KERN_ERR "fakeds1963s: tty_register_driver failed\n");
         unregister_chrdev_region(fakeds1963s_dev, 1);
         return ret;
     }
-    tty_register_device(fake_tty_driver, 0, NULL);
 
     memset(nv, 0, 512);
     memset(secrets, 0, 0x2a4);
@@ -242,7 +244,6 @@ static int __init fakeds1963s_init(void) {
 }
  
 static void __exit fakeds1963s_exit(void) {
-    tty_unregister_device(fake_tty_driver, 0);
     tty_unregister_driver(fake_tty_driver);
     unregister_chrdev_region(fakeds1963s_dev, 1);
     kfree(g_serial_info);
