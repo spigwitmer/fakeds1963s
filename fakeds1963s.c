@@ -17,6 +17,7 @@
 #include <linux/semaphore.h>
 #include <linux/mutex.h>
 #include <linux/tty.h>
+#include <linux/tty_flip.h>
 #include <linux/tty_driver.h>
 #include <asm-generic/ioctls.h>
 #include "fakeds1963s.h"
@@ -31,6 +32,8 @@ module_param(name, charp, S_IRUGO);
 MODULE_PARM_DESC(name, "Location of the system secret");
 
 DEFINE_SPINLOCK(transaction_lock);
+
+#define DELAY_TIME HZ * 1
 
 static struct tty_driver *fake_tty_driver;
 static dev_t fakeds1963s_dev;
@@ -63,24 +66,67 @@ typedef struct {
     int open_count;
     struct mutex m;
     struct timer_list *timer;
-    u8 buf[1024];
+    u8 *buf;
+    int buflen;
     int bufsize;
 } _fake_serial_info;
 static _fake_serial_info *g_serial_info = NULL;
+
+static void fakeds1963s_timer(unsigned long timer_data) {
+    _fake_serial_info *f = (_fake_serial_info *)timer_data;
+    struct tty_struct *tty;
+    struct tty_port *port;
+    char *msg;
+    int i, msglen;
+
+    tty = f->tty;
+    port = tty->port;
+
+    // TODO examine the buffer written to in serial_info, flip it after parsing it
+
+    msg = "DEXTER'S SECRET ";
+    msglen = strlen(msg);
+    for (i = 0; i < msglen; ++i) {
+        // flip one round of our message to core
+        if (!tty_buffer_request_room(port, 1))
+            tty_flip_buffer_push(port);
+        tty_insert_flip_char(port, msg[i], TTY_NORMAL); 
+    }
+
+    f->timer->expires = jiffies + DELAY_TIME;
+    add_timer(f->timer);
+}
 
 static int fakeds1963s_open(struct tty_struct *tty, struct file *file) {
     g_serial_info->open_count = 0;
     mutex_lock(&g_serial_info->m);
     tty->driver_data = g_serial_info;
     g_serial_info->tty = tty;
+    struct timer_list *timer;
 
     ++g_serial_info->open_count;
+
+    if (g_serial_info->open_count == 1) {
+        if (!g_serial_info->timer) {
+            timer = kmalloc(sizeof(*timer), GFP_KERNEL);
+            if (!timer) {
+                mutex_unlock(&g_serial_info->m);
+                return -ENOMEM;
+            }
+            g_serial_info->timer = timer;
+        }
+        g_serial_info->timer->data = (unsigned long)g_serial_info;
+        g_serial_info->timer->expires = jiffies + DELAY_TIME;
+        g_serial_info->timer->function = fakeds1963s_timer;
+        add_timer(g_serial_info->timer);
+    }
     mutex_unlock(&g_serial_info->m);
     return 0;
 }
 
 static int fakeds1963s_write(struct tty_struct *tty, 
               const unsigned char *buffer, int count) {
+    int i;
     if (!g_serial_info) {
         return -ENODEV;
     }
@@ -89,8 +135,22 @@ static int fakeds1963s_write(struct tty_struct *tty,
         mutex_unlock(&g_serial_info->m);
         return -EINVAL;
     }
-    memcpy(g_serial_info->buf, buffer, min(count, 1024));
-    g_serial_info->bufsize = count;
+    if (g_serial_info->buflen+count > g_serial_info->bufsize) {
+        // expand the buffer
+        int newsize = sizeof(u8) * (((g_serial_info->buflen+count)/1024) + 1) * 1024;
+        printk(KERN_NOTICE "ds1963s: expanding buffer to %d\n", newsize);
+        u8 *newbuf = kmalloc(newsize, GFP_KERNEL);
+        if (!newbuf) {
+            mutex_unlock(&g_serial_info->m);
+            return -ENOMEM;
+        }
+        memcpy(newbuf, g_serial_info->buf, g_serial_info->buflen);
+        g_serial_info->bufsize = newsize;
+        g_serial_info->buf = newbuf;
+    }
+    memcpy(&g_serial_info->buf[g_serial_info->buflen], buffer, count);
+    g_serial_info->buflen += count;
+    printk(KERN_NOTICE "Written to fakeds1963s: ");
     
     mutex_unlock(&g_serial_info->m);
     return min(count, 1024);
@@ -128,6 +188,9 @@ static int __init fakeds1963s_init(void) {
         return -ENOMEM;
     }
     mutex_init(&g_serial_info->m);
+    g_serial_info->buf = kmalloc(1024 * sizeof(u8), GFP_KERNEL);
+    g_serial_info->bufsize = 1024;
+    g_serial_info->buflen = 0;
 
     ret = alloc_chrdev_region(&fakeds1963s_dev, 0, 1, "fakeds1963s");
     if (ret != 0) {
