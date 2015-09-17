@@ -2,7 +2,7 @@
 #include "shaib.h"
 
 int main(int argc, char **argv) {
-    int portnum = owAcquireEx("testfifo");
+    int portnum = owAcquireEx("/dev/tty1963s");
     if (portnum == -1) {
         printf("portnum is -1, bad...\n");
     } else {

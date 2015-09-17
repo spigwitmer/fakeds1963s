@@ -47,14 +47,14 @@ ow/lib/userial/shared/owllu.c \
 ow/lib/userial/link/Linux/linuxlnk.c
 
 all: lib1w.so test1w
-lib1w.so: $(lib1w_objects:.c=.o)
-	gcc -shared -fPIC -O0 -g3 $^ -o $@
+lib1w.a: $(lib1w_objects:.c=.o)
+	ar rcs $@ $^
 
 %.o: %.c
 	gcc -fPIC -DDEBUG -Iow/common/ -Iow/lib/userial/shared/ -c -O0 -g3 $^ -o $@
 
-test1w: test1w.o lib1w.so
-	gcc -fPIC -L$(shell pwd) -l1w -lm -O0 -g3 $< -o $@
+test1w: test1w.o lib1w.a
+	gcc -fPIC -lm -O0 -g3 lib1w.a $^ -o $@
 
 clean:
-	rm -f $(lib1w_objects:.c=.o) lib1w.so test1w test1w.o
+	rm -f $(lib1w_objects:.c=.o) lib1w.a test1w test1w.o
