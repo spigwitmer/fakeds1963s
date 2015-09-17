@@ -77,6 +77,7 @@ static void fakeds1963s_timer(unsigned long timer_data) {
     int i, msglen;
 
     // TODO examine the buffer written to in serial_info, flip it after parsing it
+    printk(KERN_INFO "fakeds1963s: timer-like things...\n");
 
     msg = "DEXTER'S SECRET ";
     msglen = strlen(msg);
@@ -86,6 +87,8 @@ static void fakeds1963s_timer(unsigned long timer_data) {
             tty_flip_buffer_push(&f->port);
         tty_insert_flip_char(&f->port, msg[i], TTY_NORMAL); 
     }
+
+    tty_flip_buffer_push(&f->port);
 
     if (f->open_count > 0) {
         f->timer.expires = jiffies + DELAY_TIME;
