@@ -103,12 +103,13 @@ static int fakeds1963s_open(struct tty_struct *tty, struct file *filp) {
     ++g_serial_info->open_count;
 
     printk(KERN_INFO "fakeds1963s: hi, you're customer number: %d...\n", g_serial_info->open_count);
+
     if (g_serial_info->open_count == 1) {
         printk(KERN_INFO "fakeds1963s: since you're the first, initializing timer...\n");
         g_serial_info->timer.data = (unsigned long)g_serial_info;
         g_serial_info->timer.expires = jiffies + DELAY_TIME;
         g_serial_info->timer.function = fakeds1963s_timer;
-        add_timer(&g_serial_info->timer);
+        //add_timer(&g_serial_info->timer);
     }
     mutex_unlock(&g_serial_info->m);
 
@@ -141,6 +142,10 @@ static int fakeds1963s_write(struct tty_struct *tty,
     memcpy(&g_serial_info->buf[g_serial_info->buflen], buffer, count);
     g_serial_info->buflen += count;
     printk(KERN_NOTICE "Written to fakeds1963s: ");
+    for(i = 0; i < count; ++i) {
+        printk("%x ", buffer[i]);
+    }
+    printk(KERN_NOTICE "\n");
     
     mutex_unlock(&g_serial_info->m);
     return min(count, 1024);
@@ -153,8 +158,8 @@ static void fakeds1963s_close(struct tty_struct *tty, struct file *filp) {
         --g_serial_info->open_count;
     }
     if (g_serial_info->open_count == 0) {
-        printk(KERN_INFO "fakeds1963s: removing timer...\n");
-        del_timer(&g_serial_info->timer);
+        //printk(KERN_INFO "fakeds1963s: removing timer...\n");
+        //del_timer(&g_serial_info->timer);
     }
     mutex_unlock(&g_serial_info->m);
 }
@@ -207,15 +212,16 @@ static int __init fakeds1963s_init(void) {
     fake_tty_driver->owner = THIS_MODULE;
     fake_tty_driver->name = "tty1963s";
     fake_tty_driver->major = 0;
-    fake_tty_driver->minor_start = 3;
+    fake_tty_driver->minor_start = 0;
     fake_tty_driver->type = TTY_DRIVER_TYPE_SERIAL;
     fake_tty_driver->subtype = SERIAL_TYPE_NORMAL;
-	fake_tty_driver->init_termios = tty_std_termios;
-	fake_tty_driver->init_termios.c_cflag = B9600 | CS8 | CREAD
-							| HUPCL | CLOCAL;
-	fake_tty_driver->init_termios.c_ispeed = 9600;
-	fake_tty_driver->init_termios.c_ospeed = 9600;
-	tty_set_operations(fake_tty_driver, &serial_ops);
+    fake_tty_driver->init_termios = tty_std_termios;
+    fake_tty_driver->init_termios.c_cflag = B9600 | CS8 | CREAD
+                            | HUPCL | CLOCAL;
+    fake_tty_driver->init_termios.c_oflag = OPOST | OCRNL | ONOCR | ONLRET;
+    fake_tty_driver->init_termios.c_ispeed = 9600;
+    fake_tty_driver->init_termios.c_ospeed = 9600;
+    tty_set_operations(fake_tty_driver, &serial_ops);
     tty_port_link_device(&g_serial_info->port, fake_tty_driver, 0);
     ret = tty_register_driver(fake_tty_driver);
     if (ret) {
