@@ -46,12 +46,12 @@ ow/lib/userial/shared/owsesu.c \
 ow/lib/userial/shared/owllu.c \
 ow/lib/userial/link/Linux/linuxlnk.c
 
-all: lib1w.so test1w
+all: lib1w.a test1w
 lib1w.a: $(lib1w_objects:.c=.o)
 	ar rcs $@ $^
 
 %.o: %.c
-	gcc -fPIC -DDEBUG -Iow/common/ -Iow/lib/userial/shared/ -c -O0 -g3 $^ -o $@
+	gcc -fPIC -Iow/common/ -Iow/lib/userial/shared/ -c -O0 -g3 $^ -o $@
 
 test1w: test1w.o lib1w.a
 	gcc -fPIC -lm -O0 -g3 lib1w.a $^ -o $@

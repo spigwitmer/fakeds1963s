@@ -125,6 +125,8 @@ static int fakeds1963s_write(struct tty_struct *tty,
     }
     mutex_lock(&g_serial_info->m);
     printk(KERN_INFO "fakeds1963s: gettin write stuffs\n");
+
+    /*
     if (g_serial_info->buflen+count > g_serial_info->bufsize) {
         // expand the buffer
         int newsize = sizeof(u8) * (((g_serial_info->buflen+count)/1024) + 1) * 1024;
@@ -141,11 +143,21 @@ static int fakeds1963s_write(struct tty_struct *tty,
     }
     memcpy(&g_serial_info->buf[g_serial_info->buflen], buffer, count);
     g_serial_info->buflen += count;
+    */
+
+    ////////
     printk(KERN_NOTICE "Written to fakeds1963s: ");
     for(i = 0; i < count; ++i) {
         printk("%x ", buffer[i]);
     }
     printk(KERN_NOTICE "\n");
+    /////////
+
+    if (count == 5) {
+        unsigned char msg[5] = {0xff, 0xff, 0xff, 0x00, 0x90};
+        tty_insert_flip_string(&g_serial_info->port, msg, 5);
+        tty_flip_buffer_push(&g_serial_info->port);
+    }
     
     mutex_unlock(&g_serial_info->m);
     return min(count, 1024);
@@ -200,10 +212,12 @@ static int __init fakeds1963s_init(void) {
         |TTY_DRIVER_RESET_TERMIOS
         |TTY_DRIVER_UNNUMBERED_NODE);
     if (IS_ERR(fake_tty_driver)) {
+        tty_port_destroy(&g_serial_info->port);
         kfree(g_serial_info);
         return PTR_ERR(fake_tty_driver);
     }
     if (!fake_tty_driver) {
+        tty_port_destroy(&g_serial_info->port);
         kfree(g_serial_info);
         return -ENOMEM;
     }
@@ -219,6 +233,7 @@ static int __init fakeds1963s_init(void) {
     fake_tty_driver->init_termios.c_cflag = B9600 | CS8 | CREAD
                             | HUPCL | CLOCAL;
     fake_tty_driver->init_termios.c_oflag = OPOST | OCRNL | ONOCR | ONLRET;
+    fake_tty_driver->init_termios.c_lflag = ISIG;
     fake_tty_driver->init_termios.c_ispeed = 9600;
     fake_tty_driver->init_termios.c_ospeed = 9600;
     tty_set_operations(fake_tty_driver, &serial_ops);
@@ -243,6 +258,7 @@ static int __init fakeds1963s_init(void) {
 static void __exit fakeds1963s_exit(void) {
     tty_unregister_driver(fake_tty_driver);
     put_tty_driver(fake_tty_driver);
+    tty_port_destroy(&g_serial_info->port);
     kfree(g_serial_info->buf);
     kfree(g_serial_info);
     printk(KERN_INFO "fakeds1963s: unloaded\n");
