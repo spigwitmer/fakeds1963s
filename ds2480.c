@@ -13,15 +13,14 @@ int ds2480_init(ds2480_state_t *state, ibutton_t *button) {
 int ds2480_process(const unsigned char *bytes, size_t count, 
             unsigned char *out, size_t *outsize, ds2480_state_t *state) {
 
-#define OPUSH(b) { if (*outsize == max_out) return -1; out[*outsize++] = (b); }
+#define OPUSH(b) { if (*outsize >= max_out-1) return -1; out[(*outsize)++] = (b); }
 
     unsigned int i;
     size_t max_out = *outsize;
     *outsize = 0;
     for (i = 0; i < count; ++i) {
-        switch (bytes[i]) {
-            case TIMING_BYTE: // whatever
-                break;
+        if (bytes[i] == TIMING_BYTE) {
+            continue; // client expects no response
         }
         if (bytes[i] & CMD_CONFIG) {
             unsigned char cfgbyte = bytes[i] & CMD_CONFIG;
@@ -38,22 +37,21 @@ int ds2480_process(const unsigned char *bytes, size_t count,
             } else {
                 OPUSH(0xff)
             }
-        }
-        if (bytes[i] & CMD_COMM) {
+            continue;
+        } else if (bytes[i] & CMD_COMM) {
             unsigned char commbyte = bytes[i] & CMD_COMM;
             switch(commbyte & 0xF0) {
                 case FUNCTSEL_BIT:
                     OPUSH(state->baud & 0x90)
                     break;
                 case FUNCTSEL_SEARCHON:
-                    break;
                 case FUNCTSEL_SEARCHOFF:
-                    break;
                 case FUNCTSEL_RESET:
-                    break;
                 case FUNCTSEL_CHMOD:
+                    OPUSH(0xff)
                     break;
             }
+            continue;
         }
     }
 
