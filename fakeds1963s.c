@@ -21,6 +21,7 @@
 #include <linux/tty_driver.h>
 #include <asm-generic/ioctls.h>
 #include "ds2480.h"
+#include "ds1963s.h"
  
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Patrick McIlroy");
@@ -76,16 +77,7 @@ static int fakeds1963s_open(struct tty_struct *tty, struct file *filp) {
 
     mutex_lock(&g_serial_info->m);
     ++g_serial_info->open_count;
-
     printk(KERN_INFO "fakeds1963s: hi, you're customer number: %d...\n", g_serial_info->open_count);
-
-    if (g_serial_info->open_count == 1) {
-        printk(KERN_INFO "fakeds1963s: since you're the first, initializing timer...\n");
-        g_serial_info->timer.data = (unsigned long)g_serial_info;
-        g_serial_info->timer.expires = jiffies + DELAY_TIME;
-        g_serial_info->timer.function = fakeds1963s_timer;
-        //add_timer(&g_serial_info->timer);
-    }
     mutex_unlock(&g_serial_info->m);
 
     return 0;

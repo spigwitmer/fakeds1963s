@@ -6,12 +6,14 @@ int ds2480_init(ds2480_state_t *state, ibutton_t *button) {
     state->speed = SPEEDSEL_FLEX;
 
     state->button = button;
+
+    return 0;
 }
 
-size_t ds2480_process(const unsigned char *bytes, size_t count, 
+int ds2480_process(const unsigned char *bytes, size_t count, 
             unsigned char *out, size_t *outsize, ds2480_state_t *state) {
 
-#define OPUSH(b) out[*outsize++] = (b);
+#define OPUSH(b) { if (*outsize == max_out) return -1; out[*outsize++] = (b); }
 
     unsigned int i;
     size_t max_out = *outsize;
@@ -24,24 +26,24 @@ size_t ds2480_process(const unsigned char *bytes, size_t count,
         if (bytes[i] & CMD_CONFIG) {
             unsigned char cfgbyte = bytes[i] & CMD_CONFIG;
             if (cfgbyte & PARMSEL_BAUDRATE) {
-                OPUSH(PARMSET_9600);
+                OPUSH(PARMSET_9600)
             } else if (cfgbyte & PARMSEL_PARMREAD) {
                 switch((cfgbyte & PARMSEL_PARMREAD) << 3) {
                     case PARMSEL_BAUDRATE:
                         OPUSH(state->baud);
                         break;
                     default:
-                        OPUSH(0xff);
+                        OPUSH(0xff)
                 }
             } else {
-                OPUSH(0xff);
+                OPUSH(0xff)
             }
         }
         if (bytes[i] & CMD_COMM) {
             unsigned char commbyte = bytes[i] & CMD_COMM;
             switch(commbyte & 0xF0) {
                 case FUNCTSEL_BIT:
-                    OPUSH(state->baud & 0x90);
+                    OPUSH(state->baud & 0x90)
                     break;
                 case FUNCTSEL_SEARCHON:
                     break;
@@ -54,6 +56,8 @@ size_t ds2480_process(const unsigned char *bytes, size_t count,
             }
         }
     }
+
+    return 0;
 
 #undef OPUSH
 }

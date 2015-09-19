@@ -33,6 +33,14 @@
 //
 
 #pragma once
+#ifdef LINUX
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/string.h>
+#else
+#include <string.h>
+#include <stdlib.h>
+#endif
 
 #define TIMING_BYTE                    0xC1
 
@@ -202,4 +210,4 @@ struct _ds2480_state_t {
 typedef struct _ds2480_state_t ds2480_state_t;
 
 int ds2480_init(ds2480_state_t *state, ibutton_t *button);
-size_t ds2480_process(const unsigned char *bytes, size_t count, unsigned char *out, ds2480_state_t *state);
+int ds2480_process(const unsigned char *bytes, size_t count, unsigned char *out, size_t *outsize, ds2480_state_t *state);
