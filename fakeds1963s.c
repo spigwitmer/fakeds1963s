@@ -1,5 +1,5 @@
 /**
- * fakeds1963s.c -- emulation of a DS1963S iButton inside serial housing.
+ * fakeds1963s.c -- emulation of a DS1963S iButton inside DS2480 serial housing.
  */
 
 #include <linux/init.h>
@@ -20,7 +20,7 @@
 #include <linux/tty_flip.h>
 #include <linux/tty_driver.h>
 #include <asm-generic/ioctls.h>
-#include "fakeds1963s.h"
+#include "ds2480.h"
  
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Patrick McIlroy");
@@ -70,31 +70,6 @@ typedef struct {
     int bufsize;
 } _fake_serial_info;
 static _fake_serial_info *g_serial_info = NULL;
-
-static void fakeds1963s_timer(unsigned long timer_data) {
-    _fake_serial_info *f = (_fake_serial_info *)timer_data;
-    char *msg;
-    int i, msglen;
-
-    // TODO examine the buffer written to in serial_info, flip it after parsing it
-    printk(KERN_INFO "fakeds1963s: timer-like things...\n");
-
-    msg = "DEXTER'S SECRET ";
-    msglen = strlen(msg);
-    for (i = 0; i < msglen; ++i) {
-        // flip one round of our message to core
-        if (!tty_buffer_request_room(&f->port, 1))
-            tty_flip_buffer_push(&f->port);
-        tty_insert_flip_char(&f->port, msg[i], TTY_NORMAL); 
-    }
-
-    tty_flip_buffer_push(&f->port);
-
-    if (f->open_count > 0) {
-        f->timer.expires = jiffies + DELAY_TIME;
-        add_timer(&f->timer);
-    }
-}
 
 static int fakeds1963s_open(struct tty_struct *tty, struct file *filp) {
     tty->driver_data = g_serial_info;
