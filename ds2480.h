@@ -42,8 +42,6 @@
 #include <stdlib.h>
 #endif
 
-#define TIMING_BYTE                    0xC1
-
 // Mode Commands
 #define MODE_DATA                      0xE1
 #define MODE_COMMAND                   0xE3
@@ -200,10 +198,18 @@ struct _ibutton_t {
 };
 typedef struct _ibutton_t ibutton_t;
 
+typedef enum {
+    COMMAND = 0,
+    DATA,
+    CHECK
+} ds2480_mode_t;
+
 struct _ds2480_state_t {
-    unsigned char mode;
+    ds2480_mode_t mode;
     unsigned char speed;
     unsigned char baud;
+
+    unsigned char config[7];
 
     ibutton_t *button;
 };
@@ -211,3 +217,4 @@ typedef struct _ds2480_state_t ds2480_state_t;
 
 int ds2480_init(ds2480_state_t *state, ibutton_t *button);
 int ds2480_process(const unsigned char *bytes, size_t count, unsigned char *out, size_t *outsize, ds2480_state_t *state);
+void ds2480_master_reset(ds2480_state_t *state);

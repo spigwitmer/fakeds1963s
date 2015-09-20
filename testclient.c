@@ -13,7 +13,13 @@ void print_hex(unsigned char *out, size_t len) {
 
 int main() {
     unsigned char timing_buf[1] = {0xC1}, 
-        detect_buf[5] = {0x17, 0x45, 0x5b, 0x0f, 0x91},
+        detect_buf[5] = {
+            CMD_CONFIG | PARMSEL_SLEW | PARMSET_Slew1p37Vus, 
+            CMD_CONFIG | PARMSEL_WRITE1LOW | PARMSET_Write10us, 
+            CMD_CONFIG | PARMSEL_SAMPLEOFFSET | PARMSET_SampOff8us, 
+            CMD_CONFIG | PARMSEL_PARMREAD | (PARMSEL_BAUDRATE >> 3), 
+            CMD_COMM | FUNCTSEL_BIT | PARMSET_9600 | BITPOL_ONE
+        },
         outbuf[512];
     size_t outlen;
 
@@ -27,12 +33,14 @@ int main() {
     ///////
     outlen = 512;
     ds2480_process(timing_buf, 1, outbuf, &outlen, &ds2480);
+    print_hex(timing_buf, 1);
     printf("outlen 1: %d\n", outlen);
+    print_hex(outbuf, outlen);
 
     outlen = 512;
     ds2480_process(detect_buf, 5, outbuf, &outlen, &ds2480);
+    print_hex(detect_buf, 5);
     printf("outlen 2: %d\n", outlen);
-    printf("hex: ");
     print_hex(outbuf, outlen);
 
     return 0;
