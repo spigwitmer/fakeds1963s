@@ -4,6 +4,8 @@ void ds2480_master_reset(ds2480_state_t *state) {
     state->mode = COMMAND;
     state->speed = SPEEDSEL_STD;
 
+    memset(state->config, 0xaa, 256);
+
     state->config[PARMSEL_SLEW >> 4]                = PARMSET_Slew15Vus;
     state->config[PARMSEL_12VPULSE >> 4]            = PARMSET_512us;
     state->config[PARMSEL_5VPULSE >> 4]             = PARMSET_524ms;
@@ -53,10 +55,12 @@ static size_t ds2480_process_cmd(const unsigned char *bytes, size_t count,
         } else if ((bytes[i] & CMD_CONFIG) == CMD_CONFIG) {
             if (bytes[i] & 0x70) {
                 // write to config
-                state->config[(bytes[i] & 0x70) >> 4] = (bytes[i] & 0x0E);
-                OPUSH(bytes[i] & 0x7E)
+                printf("CMD_CONFIG SET: %x --> %x\n", (bytes[i] >> 4) & 0x07, (bytes[i] & 0x0E));
+                state->config[(bytes[i] >> 4) & 0x07] = (bytes[i] & 0x0E);
+                OPUSH((bytes[i] & 0x70) | (state->config[(bytes[i] >> 4) & 0x07]))
             } else {
-                OPUSH(state->config[(bytes[i] & 0x70) >> 4])
+                printf("CMD_CONFIG GET: %x --> %x\n", (bytes[i]&0x0E)>>1, state->config[(bytes[i]&0x0E)>>1]);
+                OPUSH(state->config[(bytes[i] & 0x0E) >> 1])
             }
         }
     }

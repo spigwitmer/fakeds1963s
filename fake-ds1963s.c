@@ -95,10 +95,18 @@ static int fakeds1963s_write(struct tty_struct *tty,
     for(i = 0; i < count; ++i) {
         printk("%x ", buffer[i]);
     }
-    printk(KERN_NOTICE "\n");
+    printk("\n");
     /////////
 
     ret = ds2480_process(buffer, count, outbuf, &pcount, &g_serial_info->state);
+
+    ////
+    printk(KERN_NOTICE "Read out from fakeds1963s: ");
+    for(i = 0; i < pcount; ++i) {
+        printk("%x ", outbuf[i]);
+    }
+    printk("\n");
+    ////
 
     if (ret == -1) {
         ret = -ENOMEM;
@@ -110,7 +118,7 @@ static int fakeds1963s_write(struct tty_struct *tty,
     printk(KERN_INFO "fakeds1963s: wrote %lu back\n", pcount);
 
     mutex_unlock(&g_serial_info->m);
-    return ret;
+    return count;
 }
 
 static void fakeds1963s_close(struct tty_struct *tty, struct file *filp) {
