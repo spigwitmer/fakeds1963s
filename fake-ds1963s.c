@@ -98,16 +98,16 @@ static int fakeds1963s_write(struct tty_struct *tty,
     printk(KERN_NOTICE "\n");
     /////////
 
-    ret = ds2480_process(buffer, count, outbuf, &pcount, g_serial_info->state);
+    ret = ds2480_process(buffer, count, outbuf, &pcount, &g_serial_info->state);
 
     if (ret == -1) {
         ret = -ENOMEM;
     }
 
     if (pcount > 0) {
-        tty_buffer_flip_string(tty, outbuf, pcount);
+        tty_insert_flip_string(tty->port, outbuf, pcount);
     }
-    printk(KERN_INFO "fakeds1963s: wrote %d back\n", pcount);
+    printk(KERN_INFO "fakeds1963s: wrote %lu back\n", pcount);
 
     mutex_unlock(&g_serial_info->m);
     return ret;
@@ -150,8 +150,7 @@ static int __init fakeds1963s_init(void) {
     mutex_init(&g_serial_info->m);
     g_serial_info->open_count = 0;
     tty_port_init(&g_serial_info->port);
-    g_serial_info->state = kmalloc(sizeof(ds2480_state_t), GFP_KERNEL);
-    ds2480_init(g_serial_info->state, button);
+    ds2480_init(&g_serial_info->state, button);
 
     fake_tty_driver = tty_alloc_driver(1, 
         TTY_DRIVER_REAL_RAW
