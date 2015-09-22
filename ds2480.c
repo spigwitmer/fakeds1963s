@@ -55,11 +55,9 @@ static size_t ds2480_process_cmd(const unsigned char *bytes, size_t count,
         } else if ((bytes[i] & CMD_CONFIG) == CMD_CONFIG) {
             if (bytes[i] & 0x70) {
                 // write to config
-                printf("CMD_CONFIG SET: %x --> %x\n", (bytes[i] >> 4) & 0x07, (bytes[i] & 0x0E));
                 state->config[(bytes[i] >> 4) & 0x07] = (bytes[i] & 0x0E);
                 OPUSH((bytes[i] & 0x70) | (state->config[(bytes[i] >> 4) & 0x07]))
             } else {
-                printf("CMD_CONFIG GET: %x --> %x\n", (bytes[i]&0x0E)>>1, state->config[(bytes[i]&0x0E)>>1]);
                 OPUSH(state->config[(bytes[i] & 0x0E) >> 1])
             }
         }
