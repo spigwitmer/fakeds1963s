@@ -33,7 +33,7 @@
 //
 
 #pragma once
-#ifdef LINUX
+#if defined(MODULE)
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
@@ -209,7 +209,7 @@ struct _ds2480_state_t {
     unsigned char speed;
     unsigned char baud;
 
-    unsigned char config[7];
+    unsigned char config[256];
 
     ibutton_t *button;
 };

@@ -32,8 +32,6 @@ static char *name = "secret";
 module_param(name, charp, S_IRUGO);
 MODULE_PARM_DESC(name, "Location of the system secret");
 
-DEFINE_SPINLOCK(transaction_lock);
-
 #define DELAY_TIME (HZ * 1)
 
 static struct tty_driver *fake_tty_driver;
@@ -65,10 +63,7 @@ typedef struct {
     struct tty_port port;
     int open_count;
     struct mutex m;
-    struct timer_list timer;
-    u8 *buf;
-    int buflen;
-    int bufsize;
+    ds2480_state_t state;
 } _fake_serial_info;
 static _fake_serial_info *g_serial_info = NULL;
 
@@ -85,32 +80,15 @@ static int fakeds1963s_open(struct tty_struct *tty, struct file *filp) {
 
 static int fakeds1963s_write(struct tty_struct *tty, 
               const unsigned char *buffer, int count) {
-    int i;
+    int i, ret;
+    unsigned char outbuf[1024];
+    size_t pcount = 1024;
 
     if (!g_serial_info) {
         return -ENODEV;
     }
     mutex_lock(&g_serial_info->m);
     printk(KERN_INFO "fakeds1963s: gettin write stuffs\n");
-
-    /*
-    if (g_serial_info->buflen+count > g_serial_info->bufsize) {
-        // expand the buffer
-        int newsize = sizeof(u8) * (((g_serial_info->buflen+count)/1024) + 1) * 1024;
-        u8 *newbuf = kmalloc(newsize, GFP_KERNEL);
-        printk(KERN_INFO "ds1963s: expanding buffer to %d\n", newsize);
-        if (!newbuf) {
-            mutex_unlock(&g_serial_info->m);
-            return -ENOMEM;
-        }
-        memcpy(newbuf, g_serial_info->buf, g_serial_info->buflen);
-        kfree(g_serial_info->buf);
-        g_serial_info->bufsize = newsize;
-        g_serial_info->buf = newbuf;
-    }
-    memcpy(&g_serial_info->buf[g_serial_info->buflen], buffer, count);
-    g_serial_info->buflen += count;
-    */
 
     ////////
     printk(KERN_NOTICE "Written to fakeds1963s: ");
@@ -120,14 +98,19 @@ static int fakeds1963s_write(struct tty_struct *tty,
     printk(KERN_NOTICE "\n");
     /////////
 
-    if (count == 5) {
-        unsigned char msg[5] = {0xff, 0xff, 0xff, 0x00, 0x90};
-        tty_insert_flip_string(&g_serial_info->port, msg, 5);
-        tty_flip_buffer_push(&g_serial_info->port);
+    ret = ds2480_process(buffer, count, outbuf, &pcount, g_serial_info->state);
+
+    if (ret == -1) {
+        ret = -ENOMEM;
     }
-    
+
+    if (pcount > 0) {
+        tty_buffer_flip_string(tty, outbuf, pcount);
+    }
+    printk(KERN_INFO "fakeds1963s: wrote %d back\n", pcount);
+
     mutex_unlock(&g_serial_info->m);
-    return min(count, 1024);
+    return ret;
 }
 
 static void fakeds1963s_close(struct tty_struct *tty, struct file *filp) {
@@ -135,10 +118,6 @@ static void fakeds1963s_close(struct tty_struct *tty, struct file *filp) {
     printk(KERN_INFO "fakeds1963s: customer number %d leaving...\n", g_serial_info->open_count);
     if (g_serial_info->open_count > 0) {
         --g_serial_info->open_count;
-    }
-    if (g_serial_info->open_count == 0) {
-        //printk(KERN_INFO "fakeds1963s: removing timer...\n");
-        //del_timer(&g_serial_info->timer);
     }
     mutex_unlock(&g_serial_info->m);
 }
@@ -161,18 +140,18 @@ static const struct tty_operations serial_ops = {
 static int __init fakeds1963s_init(void) {
     int ret;
     u8 rom_crc;
+    ibutton_t *button = kmalloc(sizeof(ibutton_t), GFP_KERNEL);
+    ds1963s_init(button);
 
     g_serial_info = kmalloc(sizeof(_fake_serial_info), GFP_KERNEL);
     if (!g_serial_info) {
         return -ENOMEM;
     }
     mutex_init(&g_serial_info->m);
-    init_timer(&g_serial_info->timer);
-    g_serial_info->buf = kmalloc(1024 * sizeof(u8), GFP_KERNEL);
-    g_serial_info->bufsize = 1024 * sizeof(u8);
-    g_serial_info->buflen = 0;
     g_serial_info->open_count = 0;
     tty_port_init(&g_serial_info->port);
+    g_serial_info->state = kmalloc(sizeof(ds2480_state_t), GFP_KERNEL);
+    ds2480_init(g_serial_info->state, button);
 
     fake_tty_driver = tty_alloc_driver(1, 
         TTY_DRIVER_REAL_RAW
@@ -219,6 +198,8 @@ static int __init fakeds1963s_init(void) {
     crc8_populate_lsb(ds_crc8_table, 0xAC);
     rom_crc = crc8(ds_crc8_table, &ROM[1], 7, CRC8_INIT_VALUE);
     ROM[0] = rom_crc;
+
+    printk(KERN_INFO "fakeds1963s: sup\n");
     return 0;
 }
  
@@ -226,7 +207,6 @@ static void __exit fakeds1963s_exit(void) {
     tty_unregister_driver(fake_tty_driver);
     put_tty_driver(fake_tty_driver);
     tty_port_destroy(&g_serial_info->port);
-    kfree(g_serial_info->buf);
     kfree(g_serial_info);
     printk(KERN_INFO "fakeds1963s: unloaded\n");
 }
