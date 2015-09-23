@@ -113,7 +113,8 @@ static int fakeds1963s_write(struct tty_struct *tty,
     }
 
     if (pcount > 0) {
-        tty_insert_flip_string(tty->port, outbuf, pcount);
+        tty_insert_flip_string(&g_serial_info->port, outbuf, pcount);
+        tty_flip_buffer_push(&g_serial_info->port);
     }
     printk(KERN_INFO "fakeds1963s: wrote %lu back\n", pcount);
 

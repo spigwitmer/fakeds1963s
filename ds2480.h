@@ -209,6 +209,7 @@ struct _ds2480_state_t {
     ds2480_mode_t mode;
     unsigned char speed;
     unsigned char baud;
+    unsigned char search; // 1 - on, 0 - off
 
     unsigned char config[256];
 

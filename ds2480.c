@@ -3,6 +3,7 @@
 void ds2480_master_reset(ds2480_state_t *state) {
     state->mode = COMMAND;
     state->speed = SPEEDSEL_STD;
+    state->search = 0;
 
     memset(state->config, 0xaa, 256);
 

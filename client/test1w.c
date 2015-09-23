@@ -19,12 +19,10 @@ int main(int argc, char **argv) {
             printf("...and yet still has errors..\n");
             DUMP_OW_ERRS()
         }
-/*
         if (FindNewSHA(copr.portnum, copr.devAN, TRUE) == 0) {
             printf("FindNewSHA failed on its own..\n");
             DUMP_OW_ERRS()
         }
-*/
         owRelease(copr.portnum);
     }
     return 0;

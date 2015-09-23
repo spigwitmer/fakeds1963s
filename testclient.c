@@ -20,6 +20,16 @@ int main() {
             CMD_CONFIG | PARMSEL_PARMREAD | (PARMSEL_BAUDRATE >> 3), 
             CMD_COMM | FUNCTSEL_BIT | PARMSET_9600 | BITPOL_ONE
         },
+        search_buf[23] = {
+            MODE_DATA,
+            0xF0,
+            MODE_COMMAND,
+            CMD_COMM | FUNCTSEL_SEARCHON | SPEEDSEL_FLEX,
+            MODE_DATA,
+            0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 
+            MODE_COMMAND,
+            CMD_COMM | FUNCTSEL_SEARCHOFF | SPEEDSEL_FLEX,
+        },
         outbuf[512];
     size_t outlen;
 
@@ -40,6 +50,12 @@ int main() {
     outlen = 512;
     ds2480_process(detect_buf, 5, outbuf, &outlen, &ds2480);
     print_hex(detect_buf, 5);
+    printf("outlen 2: %d\n", outlen);
+    print_hex(outbuf, outlen);
+
+    outlen = 512;
+    ds2480_process(search_buf, 23, outbuf, &outlen, &ds2480);
+    print_hex(search_buf, 5);
     printf("outlen 2: %d\n", outlen);
     print_hex(outbuf, outlen);
 
