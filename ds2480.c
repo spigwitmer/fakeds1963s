@@ -90,12 +90,10 @@ static int ds2480_process_search_rom(unsigned char *out, ds2480_state_t *state) 
     int i, j, pos;
     DS_DBG_PRINT("IT'S SEARCH ROM BUFFER TIME\n");
 
-    for (i = 0; i < 8; ++i) {
-        for (j = 7; j >= 0; --j) {
-            if (state->button->rom[i] & (unsigned char)(0x80 >> j)) {
-                pos = ((i*8) + j)*2;
-                out[pos/8] |= (unsigned char)(0x80 >> (pos%8));
-            }
+    memset(out, 0x0, 16);
+    for (i = 63; i >= 0; --i) {
+        if (state->button->rom[i/8] & (0x80 >> (i%8))) {
+            out[i/4] |= (unsigned char)(1 << ((i%4)*2));
         }
     }
 
