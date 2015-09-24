@@ -29,6 +29,10 @@ int main(int argc, char **argv) {
             printf("FindNewSHA failed on its own..\n");
             DUMP_OW_ERRS()
         }
+        if (owVerify(copr.portnum, 0) == 0) {
+            printf("owVerify failed...\n");
+            DUMP_OW_ERRS()
+        }
         owRelease(copr.portnum);
     }
     return 0;

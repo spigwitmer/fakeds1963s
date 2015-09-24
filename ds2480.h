@@ -229,3 +229,4 @@ struct _ibutton_t {
 int ds2480_init(ds2480_state_t *state, ibutton_t *button);
 int ds2480_process(const unsigned char *bytes, size_t count, unsigned char *out, size_t *outsize, ds2480_state_t *state);
 void ds2480_master_reset(ds2480_state_t *state);
+void ds2480_soft_reset(ds2480_state_t *state);

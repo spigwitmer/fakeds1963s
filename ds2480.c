@@ -18,6 +18,13 @@ void ds2480_master_reset(ds2480_state_t *state) {
     state->config[PARMSEL_BAUDRATE >> 4]            = PARMSET_9600;
 }
 
+void ds2480_soft_reset(ds2480_state_t *state) {
+    state->mode = COMMAND;
+    state->search = 0;
+    state->check = 0;
+    state->search_rom_len = 0;
+}
+
 int ds2480_init(ds2480_state_t *state, ibutton_t *button) {
     state->button = button;
     ds2480_master_reset(state);

@@ -107,6 +107,9 @@ static void fakeds1963s_close(struct tty_struct *tty, struct file *filp) {
     if (g_serial_info->open_count > 0) {
         --g_serial_info->open_count;
     }
+    if (g_serial_info->open_count == 0) {
+        ds2480_soft_reset(&g_serial_info->state);
+    }
     mutex_unlock(&g_serial_info->m);
 }
 
