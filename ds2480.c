@@ -79,6 +79,7 @@ static size_t ds2480_process_cmd(const unsigned char *bytes, size_t count,
                 state->config[(bytes[i] >> 4) & 0x07] = (bytes[i] & 0x0E);
                 OPUSH((bytes[i] & 0x70) | (state->config[(bytes[i] >> 4) & 0x07]))
             } else {
+                // read from it
                 OPUSH(state->config[(bytes[i] & 0x0E) >> 1])
             }
         }
@@ -87,12 +88,12 @@ static size_t ds2480_process_cmd(const unsigned char *bytes, size_t count,
 }
 
 static int ds2480_process_search_rom(unsigned char *out, ds2480_state_t *state) {
-    int i, j, pos;
+    int i;
     DS_DBG_PRINT("IT'S SEARCH ROM BUFFER TIME\n");
 
     memset(out, 0x0, 16);
-    for (i = 63; i >= 0; --i) {
-        if (state->button->rom[i/8] & (0x80 >> (i%8))) {
+    for (i = 0; i < 64; ++i) {
+        if (state->button->rom[i/8] & (1 << (i%8))) {
             out[i/4] |= (unsigned char)(1 << (((i%4)*2)+1));
         }
     }
@@ -103,7 +104,7 @@ static int ds2480_process_search_rom(unsigned char *out, ds2480_state_t *state) 
 static size_t ds2480_process_data(const unsigned char *bytes, size_t count, 
             unsigned char *out, size_t *outsize, ds2480_state_t *state) {
     int i;
-    size_t max_out = *outsize, state_out;
+    size_t state_out;
     *outsize = 0;
 
     for (i = 0; i < count; ++i) {

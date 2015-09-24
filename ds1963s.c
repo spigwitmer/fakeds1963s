@@ -2,7 +2,7 @@
 #include "ds1963s.h"
 
 static size_t ds1963s_process(const unsigned char byte, unsigned char *out, size_t *outsize, ibutton_t *button) {
-    size_t max_out = *outsize, state_out;
+    //size_t max_out = *outsize, state_out;
     *outsize = 0;
 
     DS_DBG_PRINT("Look at this shit they're making me process: 0x%x\n", byte);

@@ -197,8 +197,7 @@
 
 typedef enum {
     COMMAND = 0,
-    DATA,
-    CHECK
+    DATA
 } ds2480_mode_t;
 
 struct _ibutton_t;
