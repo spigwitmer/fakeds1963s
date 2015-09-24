@@ -12,6 +12,7 @@ void print_hex(unsigned char *out, size_t len) {
 }
 
 int main() {
+    unsigned char rom[8] = {0x00, '0', '1', '2', '7', '0', '7', 0x18};
     unsigned char timing_buf[1] = {0xC1}, 
         detect_buf[5] = {
             CMD_CONFIG | PARMSEL_SLEW | PARMSET_Slew1p37Vus, 
@@ -35,27 +36,27 @@ int main() {
 
 
     ibutton_t button;
-    ds1963s_init(&button);
+    ds1963s_init(&button, rom);
 
     ds2480_state_t ds2480;
     ds2480_init(&ds2480, &button);
 
     ///////
     outlen = 512;
-    ds2480_process(timing_buf, 1, outbuf, &outlen, &ds2480);
     print_hex(timing_buf, 1);
+    ds2480_process(timing_buf, 1, outbuf, &outlen, &ds2480);
     printf("outlen 1: %d\n", outlen);
     print_hex(outbuf, outlen);
 
     outlen = 512;
-    ds2480_process(detect_buf, 5, outbuf, &outlen, &ds2480);
     print_hex(detect_buf, 5);
+    ds2480_process(detect_buf, 5, outbuf, &outlen, &ds2480);
     printf("outlen 2: %d\n", outlen);
     print_hex(outbuf, outlen);
 
     outlen = 512;
+    print_hex(search_buf, 23);
     ds2480_process(search_buf, 23, outbuf, &outlen, &ds2480);
-    print_hex(search_buf, 5);
     printf("outlen 2: %d\n", outlen);
     print_hex(outbuf, outlen);
 

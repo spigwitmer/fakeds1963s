@@ -7,4 +7,4 @@ DS1963S simulator
 
 #include "ds2480.h"
 
-int ds1963s_init(ibutton_t *button);
+int ds1963s_init(ibutton_t *button, unsigned char *rom);
