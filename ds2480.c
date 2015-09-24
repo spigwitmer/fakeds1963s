@@ -93,7 +93,7 @@ static int ds2480_process_search_rom(unsigned char *out, ds2480_state_t *state) 
     memset(out, 0x0, 16);
     for (i = 63; i >= 0; --i) {
         if (state->button->rom[i/8] & (0x80 >> (i%8))) {
-            out[i/4] |= (unsigned char)(1 << ((i%4)*2));
+            out[i/4] |= (unsigned char)(1 << (((i%4)*2)+1));
         }
     }
 
