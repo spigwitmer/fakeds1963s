@@ -31,6 +31,10 @@ int main() {
             MODE_COMMAND,
             CMD_COMM | FUNCTSEL_SEARCHOFF | SPEEDSEL_FLEX,
         },
+        idontknow_buf[26] = {
+            0xe1,0xf0,
+            0xdb,0xfe,0x6d,0xdb,0xf6,0x6f,0xdf,0xf6,0x6f,0xfb,0xf6,0x6f,0xff,0xf7,0x6f,0xdb,0xf6,0x6f,0xff,0xf7,0x6f,0xdf,0xf7,0x7d
+        },
         outbuf[512];
     size_t outlen;
 
@@ -48,15 +52,17 @@ int main() {
     printf("outlen 1: %d\n", outlen);
     print_hex(outbuf, outlen);
 
+    /*
     outlen = 512;
     print_hex(detect_buf, 5);
     ds2480_process(detect_buf, 5, outbuf, &outlen, &ds2480);
     printf("outlen 2: %d\n", outlen);
     print_hex(outbuf, outlen);
+    */
 
     outlen = 512;
-    print_hex(search_buf, 23);
-    ds2480_process(search_buf, 23, outbuf, &outlen, &ds2480);
+    print_hex(idontknow_buf, 26);
+    ds2480_process(idontknow_buf, 26, outbuf, &outlen, &ds2480);
     printf("outlen 2: %d\n", outlen);
     print_hex(outbuf, outlen);
 
