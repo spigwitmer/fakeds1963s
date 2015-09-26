@@ -34,15 +34,20 @@
 
 #pragma once
 #if defined(MODULE)
-#define DS_DBG_PRINT(fmt, ...) printk(KERN_INFO "fakeds1963s: " fmt, ##__VA_ARGS__)
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
+#include <linux/slab.h>
+#define DS_DBG_PRINT(fmt, ...) printk(KERN_INFO "fakeds1963s: " fmt, ##__VA_ARGS__)
+#define DS_FREE kfree
+#define DS_MALLOC(x) kmalloc((x), GFP_KERNEL)
 #else
-#define DS_DBG_PRINT(fmt, ...) printf("[FAKEDS1963S] " fmt, ##__VA_ARGS__)
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#define DS_DBG_PRINT(fmt, ...) printf("[FAKEDS1963S] " fmt, ##__VA_ARGS__)
+#define DS_FREE free
+#define DS_MALLOC(x) malloc((x))
 #endif
 
 // Mode Commands
@@ -219,7 +224,7 @@ struct _ds2480_state_t {
 typedef struct _ds2480_state_t ds2480_state_t;
 
 struct _ibutton_t {
-    size_t (*process)(const unsigned char byte, unsigned char *out, size_t *outsize, ibutton_t *button);
+    int (*process)(const unsigned char *bytes, size_t count, unsigned char *out, size_t *outsize, ibutton_t *button);
 
     void *data;
     unsigned char rom[8];

@@ -1,4 +1,9 @@
 #include "ds2480.h"
+#if defined(MODULE)
+#include <linux/errno.h>
+#else
+#include <errno.h>
+#endif
 
 void ds2480_master_reset(ds2480_state_t *state) {
     state->mode = COMMAND;
@@ -33,7 +38,7 @@ int ds2480_init(ds2480_state_t *state, ibutton_t *button) {
 
 #define OPUSH(b) { if (*outsize >= max_out-1) return -1; out[(*outsize)++] = (b); }
 
-static size_t ds2480_process_cmd(const unsigned char *bytes, size_t count, 
+static int ds2480_process_cmd(const unsigned char *bytes, size_t count, 
             unsigned char *out, size_t *outsize, ds2480_state_t *state) {
     int i;
     size_t max_out = *outsize;
@@ -108,36 +113,57 @@ static int ds2480_process_search_rom(unsigned char *out, ds2480_state_t *state) 
     return 0;
 }
 
-static size_t ds2480_process_data(const unsigned char *bytes, size_t count, 
+static int ds2480_process_data(const unsigned char *bytes, size_t count, 
             unsigned char *out, size_t *outsize, ds2480_state_t *state) {
-    int i;
-    size_t state_out;
-    *outsize = 0;
+    int i, switch_to_command = 0;
+    size_t pcount = 0, num_cmd_bytes = 0;
+    unsigned char *processed;
 
+
+    /*
+        Preprocess the data.
+        A MODE_COMMAND while in data mode results in "check mode"...
+        if a second MODE_COMMAND byte follows, it's a single data byte,
+        otherwise it's a legitimate switch back to Command mode
+    */
+    processed = DS_MALLOC(count);
+    if (!processed)
+        return -ENOMEM;
+    *outsize = 0;
     for (i = 0; i < count; ++i) {
+        processed[pcount++] = bytes[i];
         if (bytes[i] == MODE_COMMAND) {
-            if (bytes[i+1] == MODE_COMMAND) {
-                i += 1;
-                state->button->process(MODE_COMMAND, out+(*outsize), &state_out, state->button);
-                *outsize += state_out;
+            if (i < count - 1 && bytes[i+1] == MODE_COMMAND) {
+                ++num_cmd_bytes;
+                ++i;
             } else {
-                DS_DBG_PRINT("Switching from DATA to COMMAND mode\n");
-                state->mode = COMMAND;
-                return i;
+                switch_to_command = 1;
+                pcount--;
+                break;
             }
-        } else if (state->search == 1) {
-            state->search_rom_buffer[state->search_rom_len++] = bytes[i];
+        }
+    }
+
+    if (state->search == 1) {
+        for (i = 0; i < pcount; ++i) {
+            state->search_rom_buffer[state->search_rom_len++] = processed[i];
             if (state->search_rom_len >= 16) {
                 ds2480_process_search_rom(out+(*outsize), state);
                 state->search_rom_len = 0;
                 *outsize += 16;
             }
-        } else {
-            state->button->process(bytes[i], out+(*outsize), &state_out, state->button);
-            *outsize += state_out;
         }
+    } else {
+        state->button->process(processed, pcount, out+(*outsize), outsize, state->button);
     }
-    return count;
+
+    if (switch_to_command == 1) {
+        state->mode = COMMAND;
+    }
+
+    DS_FREE(processed);
+
+    return pcount+num_cmd_bytes;
 }
 
 int ds2480_process(const unsigned char *bytes, size_t count, 
