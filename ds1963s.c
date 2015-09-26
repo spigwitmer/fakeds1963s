@@ -22,17 +22,37 @@ static int ds1963s_process(const unsigned char *bytes, size_t count, unsigned ch
                     out[(pos/8)+1] |= (unsigned char)(1 << (pos%8));
                 }
                 break;
+            default:
+                DS_DBG_PRINT("DS1963S: cmd: 0x%x\n", out[0]);
+                break;
         }
     }
     
     return count;
 }
 
+struct _ds1963s_data {
+    unsigned char nvram[512];
+    unsigned char scratchpad[32];
+    unsigned char secrets[64];
+    unsigned int nvram_counter[8];
+    unsigned int secret_counter[8];
+};
+typedef struct _ds1963s_data ds1963s_data;
+
 int ds1963s_init(ibutton_t *button, unsigned char *rom) {
     button->process = ds1963s_process;
 
     memcpy(button->rom, rom, 8);
 
+    button->data = DS_MALLOC(sizeof(ds1963s_data));
+    if (!button->data)
+        return -1;
+    memset(button->data, 0x0, sizeof(ds1963s_data));
+
     return 0;
 }
 
+void ds1963s_destroy(ibutton_t *button) {
+    DS_FREE(button->data);
+}

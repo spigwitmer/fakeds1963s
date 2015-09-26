@@ -12,6 +12,7 @@ static uchar ROM[8] = {0x18,
 int main(int argc, char **argv) {
     SHACopr copr;
     int i;
+    unsigned char apbuf[32];
 
     copr.portnum = owAcquireEx("/dev/tty1963s");
     if (copr.portnum == -1) {
@@ -29,8 +30,8 @@ int main(int argc, char **argv) {
             printf("FindNewSHA failed on its own..\n");
             DUMP_OW_ERRS()
         }
-        if (owVerify(copr.portnum, 0) == 0) {
-            printf("owVerify failed...\n");
+        if (ReadAuthPageSHA18(copr.portnum, 9, apbuf, NULL, 0) == -1) {
+            printf("ReadAuthPageSHA18 failed...\n");
             DUMP_OW_ERRS()
         }
         owRelease(copr.portnum);
