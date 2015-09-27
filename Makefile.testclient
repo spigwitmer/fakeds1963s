@@ -1,4 +1,6 @@
-testclient: testclient.o cli-out/ds2480.o cli-out/ds1963s.o
+all: testclient
+
+testclient: testclient.o cli-out/ds2480sim.o cli-out/ds1963s.o
 	gcc -O0 -g3 $^ -o testclient
 
 cli-out:

@@ -224,7 +224,8 @@ struct _ds2480_state_t {
 typedef struct _ds2480_state_t ds2480_state_t;
 
 struct _ibutton_t {
-    int (*process)(const unsigned char *bytes, size_t count, unsigned char *out, size_t *outsize, ibutton_t *button);
+    int (*process)(const unsigned char *bytes, size_t count, unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button);
+    int (*reset_pulse)(ibutton_t *button);
 
     void *data;
     unsigned char rom[8];
@@ -235,3 +236,4 @@ int ds2480_init(ds2480_state_t *state, ibutton_t *button);
 int ds2480_process(const unsigned char *bytes, size_t count, unsigned char *out, size_t *outsize, ds2480_state_t *state);
 void ds2480_master_reset(ds2480_state_t *state);
 void ds2480_soft_reset(ds2480_state_t *state);
+void ds2480_destroy(ds2480_state_t *state);

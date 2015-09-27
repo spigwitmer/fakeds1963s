@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "ds2480.h"
+#include "ds2480sim.h"
 #include "ds1963s.h"
 
 void print_hex(unsigned char *out, size_t len) {
@@ -52,13 +52,11 @@ int main() {
     printf("outlen 1: %d\n", outlen);
     print_hex(outbuf, outlen);
 
-    /*
     outlen = 512;
     print_hex(detect_buf, 5);
     ds2480_process(detect_buf, 5, outbuf, &outlen, &ds2480);
     printf("outlen 2: %d\n", outlen);
     print_hex(outbuf, outlen);
-    */
 
     outlen = 512;
     print_hex(idontknow_buf, 26);

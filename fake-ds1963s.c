@@ -18,7 +18,7 @@
 #include <linux/tty_flip.h>
 #include <linux/tty_driver.h>
 #include <asm-generic/ioctls.h>
-#include "ds2480.h"
+#include "ds2480sim.h"
 #include "ds1963s.h"
  
 MODULE_LICENSE("GPL");

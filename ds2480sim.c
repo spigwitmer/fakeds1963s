@@ -1,4 +1,4 @@
-#include "ds2480.h"
+#include "ds2480sim.h"
 #if defined(MODULE)
 #include <linux/errno.h>
 #else
@@ -72,6 +72,8 @@ static int ds2480_process_cmd(const unsigned char *bytes, size_t count,
 
                 case FUNCTSEL_RESET:
                     DS_DBG_PRINT("FUNCTSEL_RESET\n");
+                    if (state->button->reset_pulse)
+                        state->button->reset_pulse(state->button);
                     OPUSH(0xCD) // always a pulse
                     break;
 
@@ -154,7 +156,7 @@ static int ds2480_process_data(const unsigned char *bytes, size_t count,
             }
         }
     } else {
-        state->button->process(processed, pcount, out+(*outsize), outsize, state->button);
+        state->button->process(processed, pcount, out+(*outsize), outsize, 0, state->button); // XXX
     }
 
     if (switch_to_command == 1) {
@@ -188,4 +190,8 @@ int ds2480_process(const unsigned char *bytes, size_t count,
         *outsize += state_out;
     }
     return count;
+}
+
+void ds2480_destroy(ds2480_state_t *state) {
+    return;
 }

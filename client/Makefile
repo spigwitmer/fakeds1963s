@@ -44,17 +44,23 @@ ow/lib/userial/shared/owtrnu.c \
 ow/lib/userial/shared/ds2480ut.c \
 ow/lib/userial/shared/owsesu.c \
 ow/lib/userial/shared/owllu.c \
-ow/lib/userial/link/Linux/linuxlnk.c
+ow/lib/userial/link/Simulated/simlink.c \
+
+# symlink these from the main project
+ds2480sim_objects := ds2480sim.c ds1963s.c
 
 all: lib1w.a test1w
 lib1w.a: $(lib1w_objects:.c=.o)
 	ar rcs $@ $^
 
-%.o: %.c
-	gcc -fPIC -Iow/common/ -Iow/lib/userial/shared/ -c -O0 -g3 $^ -o $@
+ds2480sim.a: $(ds2480sim_objects:.c=.o)
+	ar rcs $@ $^
 
-test1w: test1w.o lib1w.a
-	gcc -fPIC -lm -O0 -g3 lib1w.a $^ -o $@
+%.o: %.c
+	gcc -fPIC -I.. -Iow/common/ -Iow/lib/userial/shared/ -c -O0 -g3 $^ -o $@
+
+test1w: test1w.o lib1w.a ds2480sim.a
+	gcc -fPIC -lm -O0 -g3 lib1w.a ds2480sim.a $^ -o $@
 
 clean:
-	rm -f $(lib1w_objects:.c=.o) lib1w.a test1w test1w.o
+	rm -f $(lib1w_objects:.c=.o) $(ds2480sim_objects:.c=.o) lib1w.a ds2480sim.a test1w test1w.o
