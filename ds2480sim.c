@@ -58,22 +58,25 @@ static int ds2480_process_cmd(const unsigned char *bytes, size_t count,
         }
         if ((bytes[i] & CMD_COMM) == CMD_COMM) {
             DS_DBG_PRINT("%x is definitely a command...\n", bytes[i]);
-            switch(bytes[i] & 0x60) {
+            switch(bytes[i] & FUNCTSEL_MASK) {
                 case FUNCTSEL_BIT:
                 case 0x10:
                     DS_DBG_PRINT("FUNCTSEL_BIT\n");
+                    state->speed = bytes[i] & SPEEDSEL_MASK;
                     OPUSH(bytes[i] & 0x9F)
                     break;
                     
                 case FUNCTSEL_SEARCHOFF:
                     DS_DBG_PRINT("FUNCTSEL_SEARCHON/OFF\n");
                     state->search = (bytes[i] >> 4) & 1;
+                    state->speed = bytes[i] & SPEEDSEL_MASK;
                     break;
 
                 case FUNCTSEL_RESET:
                     DS_DBG_PRINT("FUNCTSEL_RESET\n");
                     if (state->button->reset_pulse)
                         state->button->reset_pulse(state->button);
+                    state->speed = bytes[i] & SPEEDSEL_MASK;
                     OPUSH(0xCD) // always a pulse
                     break;
 
@@ -156,7 +159,9 @@ static int ds2480_process_data(const unsigned char *bytes, size_t count,
             }
         }
     } else {
-        state->button->process(processed, pcount, out+(*outsize), outsize, 0, state->button); // XXX
+        DS_DBG_PRINT("letting button process %lu bytes, speed = %x\n", pcount, state->speed);
+        state->button->process(processed, pcount, out+(*outsize), 
+                outsize, (state->speed == SPEEDSEL_OD), state->button);
     }
 
     if (switch_to_command == 1) {
@@ -174,12 +179,6 @@ int ds2480_process(const unsigned char *bytes, size_t count,
     unsigned int i;
     size_t max_out = *outsize, state_out;
     *outsize = 0;
-
-    DS_DBG_PRINT("To process in full: ");
-    for (i = 0; i < count; ++i) {
-        printf("%x ", bytes[i]);
-    }
-    printf("\n");
 
     for (i = 0; i < count; ++i) {
         state_out = max_out-(*outsize);

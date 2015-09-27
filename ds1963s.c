@@ -22,6 +22,13 @@ struct _ds1963s_data {
 };
 typedef struct _ds1963s_data ds1963s_data;
 
+static inline void copy_int32_le(unsigned char *out, int what) {
+    out[0] = what & 0xff;
+    out[1] = (what >> 8) & 0xff;
+    out[2] = (what >> 16) & 0xff;
+    out[3] = (what >> 24) & 0xff;
+}
+
 // read NVRAM from TA1:TA2
 static int _ds1963s_read_nvram(unsigned char *out, int len, ibutton_t *button, int write_cycle) {
     ds1963s_data *pdata = (ds1963s_data*)button->data;
@@ -46,10 +53,10 @@ static int _ds1963s_read_nvram(unsigned char *out, int len, ibutton_t *button, i
         int *pcycle = &(pdata->nvram_counter[(addr/32) - 8]), 
             *scycle = &(pdata->secret_counter[(addr/32) - 8]);
         (*pcycle)++;
-        memcpy(out+32, pcycle, 4);
-        memcpy(out+36, scycle, 4);
-    }
-    if (write_cycle) {
+        DS_DBG_PRINT("NVRAM write cycle count: %d\n", *pcycle);
+        DS_DBG_PRINT("secret write cycle count: %d\n", *scycle);
+        copy_int32_le(out+32, *pcycle);
+        copy_int32_le(out+36, *scycle);
     }
     return len;
 }
@@ -57,7 +64,7 @@ static int _ds1963s_read_nvram(unsigned char *out, int len, ibutton_t *button, i
 static int ds1963s_process_memory(const unsigned char *bytes, size_t count, 
         unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
     int i;
-    unsigned short addr, data_crc16;
+    unsigned short data_crc16;
     ds1963s_data *pdata = (ds1963s_data*)button->data;
 
     for(i = 0; i < count; ++i) {
@@ -66,13 +73,17 @@ static int ds1963s_process_memory(const unsigned char *bytes, size_t count,
     switch(out[0]) {
         case 0xA5: // read auth page
             DS_DBG_PRINT("DS1963S: read auth page\n");
-            pdata->TA1 = out[1];
-            pdata->TA2 = out[2];
+            pdata->TA1 = bytes[1];
+            pdata->TA2 = bytes[2];
+            out[1] = pdata->TA1;
+            out[2] = pdata->TA2;
             _ds1963s_read_nvram(&out[3], 32, button, 1);
-            data_crc16 = full_crc16(out, 42);
-            out[42] = (data_crc16 >> 8) & 0xff;
+            data_crc16 = full_crc16(out, 43, 0) ^ 0xffff;
             out[43] = data_crc16 & 0xff;
+            out[44] = (data_crc16 >> 8) & 0xff;
+            out[count-1] = 0xA5;
             pdata->cmd_state = CMD_ROM;
+            *outsize = count;
             return count;
         default:
             DS_DBG_PRINT("DS1963S: unimplemented mem cmd: 0x%x\n", out[0]);
@@ -166,6 +177,7 @@ static int ds1963s_reset_pulse(ibutton_t *button) {
     ds1963s_data *pdata = (ds1963s_data*)button->data;
 
     pdata->cmd_state = CMD_ROM;
+    return 1;
 }
 
 int ds1963s_init(ibutton_t *button, unsigned char *rom) {

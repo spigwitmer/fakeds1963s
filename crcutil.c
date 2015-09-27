@@ -76,9 +76,9 @@ static unsigned short crc16_iter(unsigned short seed, unsigned short cdata)
    return seed;
 }
 
-unsigned short full_crc16(unsigned char *data, int size) {
+unsigned short full_crc16(unsigned char *data, int size, unsigned short seed) {
     int i;
-    unsigned short curcrc = 0;
+    unsigned short curcrc = seed;
     for (i = 0; i < size; ++i) {
         curcrc = crc16_iter(curcrc, (unsigned short)data[i]);
     }
@@ -100,9 +100,9 @@ static unsigned char crc8_iter(unsigned char seed, unsigned char x)
    return dscrc_table[seed ^ x];
 }
 
-unsigned char full_crc8(unsigned char *data, int size) {
+unsigned char full_crc8(unsigned char *data, int size, unsigned short seed) {
     int i;
-    unsigned char curcrc = 0;
+    unsigned char curcrc = seed;
     for (i = 0; i < size; ++i) {
         curcrc = crc8_iter(curcrc, (unsigned short)data[i]);
     }
