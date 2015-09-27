@@ -1,5 +1,8 @@
 #include "ds2480sim.h"
 #include "ds1963s.h"
+#include "crcutil.h"
+
+#define SCRIPPIE_MODE 0
 
 typedef enum {
     CMD_ROM,
@@ -9,8 +12,8 @@ typedef enum {
 
 struct _ds1963s_data {
     unsigned char nvram[512];
-    unsigned char scratchpad[32];
     unsigned char secrets[64];
+    unsigned char scratchpad[32];
     unsigned int nvram_counter[8];
     unsigned int secret_counter[8];
     unsigned char TA1, TA2, ES;
@@ -19,10 +22,42 @@ struct _ds1963s_data {
 };
 typedef struct _ds1963s_data ds1963s_data;
 
+// read NVRAM from TA1:TA2
+static int _ds1963s_read_nvram(unsigned char *out, int len, ibutton_t *button, int write_cycle) {
+    ds1963s_data *pdata = (ds1963s_data*)button->data;
+    unsigned int addr = (int)pdata->TA1 + ((int)(pdata->TA2) << 8);
+
+    DS_DBG_PRINT("Copying from NVRAM at 0x%X\n", addr);
+
+#if !SCRIPPIE_MODE
+    if (addr + len > 0x200) {
+        return -1;
+    }
+
+    if (addr > 0x1e0) {
+        memset(out, 0xff, len);
+        return len;
+    }
+#endif
+
+    memcpy(out, &pdata->nvram[addr], len);
+    // increment W/C counter
+    if (addr/32 > 7 && addr/32 < 16) {
+        int *pcycle = &(pdata->nvram_counter[(addr/32) - 8]), 
+            *scycle = &(pdata->secret_counter[(addr/32) - 8]);
+        (*pcycle)++;
+        memcpy(out+32, pcycle, 4);
+        memcpy(out+36, scycle, 4);
+    }
+    if (write_cycle) {
+    }
+    return len;
+}
 
 static int ds1963s_process_memory(const unsigned char *bytes, size_t count, 
-        unsigned char *out, size_t *outsize, ibutton_t *button) {
+        unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
     int i;
+    unsigned short addr, data_crc16;
     ds1963s_data *pdata = (ds1963s_data*)button->data;
 
     for(i = 0; i < count; ++i) {
@@ -31,7 +66,12 @@ static int ds1963s_process_memory(const unsigned char *bytes, size_t count,
     switch(out[0]) {
         case 0xA5: // read auth page
             DS_DBG_PRINT("DS1963S: read auth page\n");
-            memset(&out[1], 0xFF, count-1);
+            pdata->TA1 = out[1];
+            pdata->TA2 = out[2];
+            _ds1963s_read_nvram(&out[3], 32, button, 1);
+            data_crc16 = full_crc16(out, 42);
+            out[42] = (data_crc16 >> 8) & 0xff;
+            out[43] = data_crc16 & 0xff;
             pdata->cmd_state = CMD_ROM;
             return count;
         default:
@@ -42,7 +82,7 @@ static int ds1963s_process_memory(const unsigned char *bytes, size_t count,
 }
 
 static int ds1963s_process_rom(const unsigned char *bytes, size_t count, 
-        unsigned char *out, size_t *outsize, ibutton_t *button) {
+        unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
 
     int processed = 0, i, pos;
     ds1963s_data *pdata = (ds1963s_data*)button->data;
@@ -90,7 +130,7 @@ static int ds1963s_process_rom(const unsigned char *bytes, size_t count,
 }
 
 static int ds1963s_process_sha(const unsigned char *bytes, size_t count, 
-        unsigned char *out, size_t *outsize, ibutton_t *button) {
+        unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
     // TODO
     return 0;
 }
@@ -106,15 +146,15 @@ static int ds1963s_process(const unsigned char *bytes, size_t count,
         switch(pdata->cmd_state) {
             case CMD_ROM:
                 DS_DBG_PRINT("DS1963S: processing in CMD_ROM mode\n");
-                i += ds1963s_process_rom(&bytes[i], count, out+(*outsize), &state_out, button);
+                i += ds1963s_process_rom(&bytes[i], count, out+(*outsize), &state_out, overdrive, button);
                 break;
             case CMD_MEMORY:
                 DS_DBG_PRINT("DS1963S: processing in CMD_MEMORY mode\n");
-                i += ds1963s_process_memory(&bytes[i], count, out+(*outsize), &state_out, button);
+                i += ds1963s_process_memory(&bytes[i], count, out+(*outsize), &state_out, overdrive, button);
                 break;
             case CMD_SHA:
                 DS_DBG_PRINT("DS1963S: processing in CMD_SHA mode\n");
-                i += ds1963s_process_sha(&bytes[i], count, out+(*outsize), &state_out, button);
+                i += ds1963s_process_sha(&bytes[i], count, out+(*outsize), &state_out, overdrive, button);
                 break;
         }
         *outsize += state_out;

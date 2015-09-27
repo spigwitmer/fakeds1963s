@@ -175,6 +175,12 @@ int ds2480_process(const unsigned char *bytes, size_t count,
     size_t max_out = *outsize, state_out;
     *outsize = 0;
 
+    DS_DBG_PRINT("To process in full: ");
+    for (i = 0; i < count; ++i) {
+        printf("%x ", bytes[i]);
+    }
+    printf("\n");
+
     for (i = 0; i < count; ++i) {
         state_out = max_out-(*outsize);
         switch(state->mode) {
