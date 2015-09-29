@@ -47,7 +47,7 @@ ow/lib/userial/shared/owllu.c \
 ow/lib/userial/link/Simulated/simlink.c \
 
 # symlink these from the main project
-ds2480sim_objects := ds2480sim.c ds1963s.c crcutil.c
+ds2480sim_objects := ds2480sim.c ds1963s.c crcutil.c sha1.c
 
 all: lib1w.a test1w
 lib1w.a: $(lib1w_objects:.c=.o)

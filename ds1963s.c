@@ -1,13 +1,13 @@
 #include "ds2480sim.h"
 #include "ds1963s.h"
 #include "crcutil.h"
+#include "sha1.h"
 
 #define SCRIPPIE_MODE 0
 
 typedef enum {
     CMD_ROM,
-    CMD_MEMORY,
-    CMD_SHA
+    CMD_MEMORY
 } ds1963s_cmd_state;
 
 struct _ds1963s_data {
@@ -61,9 +61,33 @@ static int _ds1963s_read_nvram(unsigned char *out, int len, ibutton_t *button, i
     return len;
 }
 
+static int ds1963s_process_sha(const unsigned char *bytes, size_t count, 
+        unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
+    int i, addr, len, page;
+    unsigned short data_crc16;
+    ds1963s_data *pdata = (ds1963s_data*)button->data;
+    sha1nfo s;
+
+    sha1_init(&s);
+    switch(bytes[0]) {
+        case 0xC3:
+            addr = pdata->TA1 + (pdata->TA2 << 8);
+            page = addr / 32;
+            if ((page == 0 || page == 8) && addr <= 0x1e0) {
+                sha1_write(&s, &pdata->secrets[page*4], 8);
+                sha1_write(&s, &pdata->nvram[addr], 32);
+                sha1_write(&s, pdata->scratchpad, 15);
+            } else {
+
+            }
+            break;
+    }
+    return 0;
+}
+
 static int ds1963s_process_memory(const unsigned char *bytes, size_t count, 
         unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
-    int i;
+    int i, addr, len, processed;
     unsigned short data_crc16;
     ds1963s_data *pdata = (ds1963s_data*)button->data;
 
@@ -71,6 +95,47 @@ static int ds1963s_process_memory(const unsigned char *bytes, size_t count,
         out[i] = bytes[i];
     }
     switch(out[0]) {
+        case 0x33:
+            pdata->TA1 = bytes[1];
+            pdata->TA2 = bytes[2];
+            *outsize = ds1963s_process_sha(bytes+3, count-3, out, outsize, overdrive, button) + 3;
+            // CRC16
+            break;
+        case 0xAA: // read scratchpad
+            DS_DBG_PRINT("DS1963S: read scratchpad\n");
+            out[1] = pdata->TA1;
+            out[2] = pdata->TA2;
+            if (pdata->HIDE == 1) {
+                memset(&out[4], 0xFF, count-4);
+            } else {
+                addr = pdata->TA1 & 0x1F;
+                DS_DBG_PRINT("Reading scratchpad from address %hx\n", addr);
+                memcpy(&out[4], &pdata->scratchpad[addr], 32-addr);
+                pdata->ES |= 0x1F;
+                out[3] = pdata->ES;
+                data_crc16 = full_crc16(out, 36, 0) ^ 0xffff;
+                out[36] = data_crc16 & 0xff;
+                out[37] = (data_crc16 >> 8) & 0xff;
+            }
+            *outsize = count;
+            break;
+        case 0x0F: // write scratchpad
+            DS_DBG_PRINT("DS1963S: write scratchpad\n");
+            pdata->TA1 = bytes[1];
+            pdata->TA2 = bytes[2];
+            addr = pdata->TA1 + (pdata->TA2 << 8);
+            if (addr < 0x200) {
+                addr = pdata->TA1 & 0x1F;
+                len = 32 - addr;
+                DS_DBG_PRINT("Writing scratchpad at address %hx\n", addr);
+                memcpy(&pdata->scratchpad[addr], &bytes[3], len);
+                memcpy(&out[3], &pdata->scratchpad[addr], len);
+                data_crc16 = full_crc16(out, 35, 0) ^ 0xffff;
+                out[35] = data_crc16 & 0xff;
+                out[36] = (data_crc16 >> 8) & 0xff;
+            }
+            *outsize = count;
+            break;
         case 0xA5: // read auth page
             DS_DBG_PRINT("DS1963S: read auth page\n");
             pdata->TA1 = bytes[1];
@@ -82,14 +147,20 @@ static int ds1963s_process_memory(const unsigned char *bytes, size_t count,
             out[43] = data_crc16 & 0xff;
             out[44] = (data_crc16 >> 8) & 0xff;
             out[count-1] = 0xA5;
-            pdata->cmd_state = CMD_ROM;
+
+            // TODO: SHA1 computation in scratchpad[8] for apps that actually
+            // use this?
+           
+            pdata->TA1 = pdata->TA2 = 0; 
             *outsize = count;
-            return count;
+            break;
         default:
             DS_DBG_PRINT("DS1963S: unimplemented mem cmd: 0x%x\n", out[0]);
             pdata->cmd_state = CMD_ROM;
             return 1;
     }
+    pdata->cmd_state = CMD_ROM;
+    return count;
 }
 
 static int ds1963s_process_rom(const unsigned char *bytes, size_t count, 
@@ -140,12 +211,6 @@ static int ds1963s_process_rom(const unsigned char *bytes, size_t count,
     return processed;
 }
 
-static int ds1963s_process_sha(const unsigned char *bytes, size_t count, 
-        unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
-    // TODO
-    return 0;
-}
-
 static int ds1963s_process(const unsigned char *bytes, size_t count, 
         unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
     int i = 0;
@@ -162,10 +227,6 @@ static int ds1963s_process(const unsigned char *bytes, size_t count,
             case CMD_MEMORY:
                 DS_DBG_PRINT("DS1963S: processing in CMD_MEMORY mode\n");
                 i += ds1963s_process_memory(&bytes[i], count, out+(*outsize), &state_out, overdrive, button);
-                break;
-            case CMD_SHA:
-                DS_DBG_PRINT("DS1963S: processing in CMD_SHA mode\n");
-                i += ds1963s_process_sha(&bytes[i], count, out+(*outsize), &state_out, overdrive, button);
                 break;
         }
         *outsize += state_out;
@@ -193,6 +254,7 @@ int ds1963s_init(ibutton_t *button, unsigned char *rom) {
     pdata = button->data;
 
     pdata->cmd_state = CMD_ROM;
+    pdata->HIDE = pdata->TA1 = pdata->TA2 = pdata->ES = 0;
 
     return 0;
 }
