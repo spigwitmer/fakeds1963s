@@ -44,7 +44,7 @@ ow/lib/userial/shared/owtrnu.c \
 ow/lib/userial/shared/ds2480ut.c \
 ow/lib/userial/shared/owsesu.c \
 ow/lib/userial/shared/owllu.c \
-ow/lib/userial/link/Simulated/simlink.c \
+ow/lib/userial/link/Linux/linuxlnk.c
 
 # symlink these from the main project
 ds2480sim_objects := ds2480sim.c ds1963s.c crcutil.c sha1.c

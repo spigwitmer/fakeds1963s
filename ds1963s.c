@@ -77,7 +77,7 @@ static int _ds1963s_read_nvram(unsigned char *out, int len, ibutton_t *button, i
 
         // page number + M
         M = (uint8_t)(addr >> 5);
-        if (pdata->MATCH && pdata->SEC && (pdata->SEC & 6 == (pdata->TA1 & 0xE0)>>5)) {
+        if (pdata->MATCH && pdata->SEC && ((pdata->SEC & 6) == (pdata->TA1 & 0xE0)>>5)) {
             M |= 0x80;
         }
         sha1_writebyte(&s, M);
@@ -121,7 +121,7 @@ static int ds1963s_process_sha(const unsigned char *bytes, size_t count,
                 sha1_write(&s, &pdata->scratchpad[8], 4);
                 mpx = pdata->scratchpad[12] & 0x1F;
                 // M Control bit
-                if (pdata->MATCH && pdata->SEC && (pdata->SEC & 6 == (pdata->TA1 & 0xE0)>>5)) {
+                if (pdata->MATCH && pdata->SEC && ((pdata->SEC & 6) == (pdata->TA1 & 0xE0)>>5)) {
                     mpx |= 0x80;
                 }
                 sha1_writebyte(&s, mpx);
@@ -170,6 +170,7 @@ static int ds1963s_process_memory(const unsigned char *bytes, size_t count,
                 data_crc16 = full_crc16(out, 36, 0) ^ 0xffff;
                 out[36] = data_crc16 & 0xff;
                 out[37] = (data_crc16 >> 8) & 0xff;
+                memset(&out[38], 0x55, count-38);
             }
             *outsize = count;
             break;
@@ -180,6 +181,7 @@ static int ds1963s_process_memory(const unsigned char *bytes, size_t count,
             addr = pdata->TA1 + (pdata->TA2 << 8);
             if (addr < 0x200) {
                 addr = pdata->TA1 & 0x1F;
+                pdata->ES &= 0x1F;
                 len = 32 - addr;
                 DS_DBG_PRINT("Writing scratchpad at address %hx\n", addr);
                 memcpy(&pdata->scratchpad[addr], &bytes[3], len);
