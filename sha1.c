@@ -5,6 +5,12 @@
 
 #include "sha1.h"
 
+#if defined(MODULE)
+#include <asm/byteorder.h>
+#ifdef __BIG_ENDIAN
+# define SHA_BIG_ENDIAN
+#endif
+#else
 #ifdef __BIG_ENDIAN__
 # define SHA_BIG_ENDIAN
 #elif defined __LITTLE_ENDIAN__
@@ -18,6 +24,7 @@
 # if __BYTE_ORDER__ ==  __ORDER_BIG_ENDIAN__
 #  define SHA_BIG_ENDIAN
 # endif
+#endif
 #endif
 
 
@@ -120,12 +127,12 @@ void sha1_pad(sha1nfo *s) {
 }
 
 uint8_t* sha1_result(sha1nfo *s) {
+    int i;
 	// Pad to complete the last block
 	sha1_pad(s);
 
 #ifndef SHA_BIG_ENDIAN
 	// Swap byte order back
-	int i;
 	for (i=0; i<5; i++) {
 		s->state[i]=
 			  (((s->state[i])<<24)& 0xff000000)
