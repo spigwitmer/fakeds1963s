@@ -3,8 +3,6 @@
 #include "crcutil.h"
 #include "sha1.h"
 
-#define SCRIPPIE_MODE 0
-
 typedef enum {
     CMD_ROM,
     CMD_MEMORY
@@ -44,7 +42,6 @@ static int _ds1963s_read_nvram(unsigned char *out, int len, ibutton_t *button, i
 
     DS_DBG_PRINT("Copying from NVRAM at 0x%X\n", addr);
 
-#if !SCRIPPIE_MODE // don't copy beyond NVRAM, unless...
     if (addr + len > 0x200) {
         DS_DBG_PRINT("addr + len = %08x, bailing...\n", addr+len);
         return -1;
@@ -57,7 +54,6 @@ static int _ds1963s_read_nvram(unsigned char *out, int len, ibutton_t *button, i
     }
 
     DS_DBG_PRINT("NVRAM address %08x seems sane.\n", addr);
-#endif
 
     sha1_init(&s);
     memcpy(out, &pdata->nvram[addr], len);
