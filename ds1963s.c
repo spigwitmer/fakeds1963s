@@ -38,7 +38,7 @@ static inline void copy_int32_le(unsigned char *out, int what) {
  */
 static int _ds1963s_read_nvram(unsigned char *out, int len, ibutton_t *button, int write_cycle) {
     sha1nfo s;
-    unsigned char M = 0, X = 0;
+    unsigned char M = 0;
     ds1963s_data *pdata = (ds1963s_data*)button->data;
     unsigned int addr = (int)pdata->TA1 + ((int)(pdata->TA2) << 8);
 
@@ -102,8 +102,7 @@ static int _ds1963s_read_nvram(unsigned char *out, int len, ibutton_t *button, i
 
 static int ds1963s_process_sha(const unsigned char *bytes, size_t count, 
         unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
-    int i, addr, len, page, processed;
-    unsigned short data_crc16;
+    int addr, page, processed;
     unsigned char mpx, trailing_sha_data[] = {0x80, 0x0, 0x0, 0x0, 
                                 0x0, 0x0, 0x0, 0x1, 0xB8};
     ds1963s_data *pdata = (ds1963s_data*)button->data;
@@ -131,6 +130,7 @@ static int ds1963s_process_sha(const unsigned char *bytes, size_t count,
                 sha1_write(&s, trailing_sha_data, 9);
                 memcpy(&pdata->scratchpad[8], sha1_result(&s), 20);
             }
+            pdata->CHLG = pdata->AUTH = 0;
             processed = 0;
             break;
     }
@@ -139,7 +139,7 @@ static int ds1963s_process_sha(const unsigned char *bytes, size_t count,
 
 static int ds1963s_process_memory(const unsigned char *bytes, size_t count, 
         unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
-    int i, addr, len, processed, page;
+    int addr, len, page;
     unsigned short data_crc16;
     ds1963s_data *pdata = (ds1963s_data*)button->data;
 
@@ -242,6 +242,7 @@ static int ds1963s_process_memory(const unsigned char *bytes, size_t count,
             memset(&out[45], 0x55, count-45);
 
             pdata->TA1 = pdata->TA2 = 0; 
+            pdata->CHLG = pdata->AUTH = 0;
             *outsize = count;
             break;
         default:
