@@ -96,46 +96,179 @@ static int _ds1963s_read_nvram(unsigned char *out, int len, ibutton_t *button, i
     return len;
 }
 
-static int ds1963s_process_sha(const unsigned char *bytes, size_t count, 
+static int _ds1963s_sha_sign_data_page(const unsigned char *bytes, size_t count, 
         unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
-    int addr, page, processed;
+
+    int addr, page;
     unsigned char mpx, trailing_sha_data[] = {0x80, 0x0, 0x0, 0x0, 
                                 0x0, 0x0, 0x0, 0x1, 0xB8};
     ds1963s_data *pdata = (ds1963s_data*)button->data;
     sha1nfo s;
 
     sha1_init(&s);
+    addr = pdata->TA1 + (pdata->TA2 << 8);
+    page = addr / 32;
+    if ((page == 0 || page == 8) && addr <= 0x1e0) {
+        DS_DBG_PRINT("Signing with secret %d\n", page);
+        sha1_write(&s, &pdata->secrets[page*4], 4);
+        sha1_write(&s, &pdata->nvram[addr], 32);
+        sha1_write(&s, &pdata->scratchpad[8], 4);
+        mpx = pdata->scratchpad[12] & 0x1F;
+        // M Control bit
+        if (pdata->MATCH && pdata->SEC && ((pdata->SEC & 6) == (pdata->TA1 & 0xE0)>>5)) {
+            mpx |= 0x80;
+        }
+        sha1_writebyte(&s, mpx);
+        sha1_write(&s, &pdata->scratchpad[13], 7);
+        sha1_write(&s, &pdata->secrets[(page*4)+1], 4);
+        sha1_write(&s, &pdata->scratchpad[20], 3);
+        sha1_write(&s, trailing_sha_data, 9);
+        memcpy(&pdata->scratchpad[8], sha1_result(&s), 20);
+    }
+    pdata->CHLG = pdata->AUTH = 0;
+    return 0;
+}
+
+static int ds1963s_process_sha(const unsigned char *bytes, size_t count, 
+        unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
+    int processed;
     switch(bytes[0]) {
         case 0xC3: // sign data page
-            addr = pdata->TA1 + (pdata->TA2 << 8);
-            page = addr / 32;
-            if ((page == 0 || page == 8) && addr <= 0x1e0) {
-                DS_DBG_PRINT("Signing with secret %d\n", page);
-                sha1_write(&s, &pdata->secrets[page*4], 4);
-                sha1_write(&s, &pdata->nvram[addr], 32);
-                sha1_write(&s, &pdata->scratchpad[8], 4);
-                mpx = pdata->scratchpad[12] & 0x1F;
-                // M Control bit
-                if (pdata->MATCH && pdata->SEC && ((pdata->SEC & 6) == (pdata->TA1 & 0xE0)>>5)) {
-                    mpx |= 0x80;
-                }
-                sha1_writebyte(&s, mpx);
-                sha1_write(&s, &pdata->scratchpad[13], 7);
-                sha1_write(&s, &pdata->secrets[(page*4)+1], 4);
-                sha1_write(&s, &pdata->scratchpad[20], 3);
-                sha1_write(&s, trailing_sha_data, 9);
-                memcpy(&pdata->scratchpad[8], sha1_result(&s), 20);
-            }
-            pdata->CHLG = pdata->AUTH = 0;
-            processed = 0;
+            processed = _ds1963s_sha_sign_data_page(bytes, count, out, outsize, overdrive, button);
+            break;
+        default:
+            processed = count;
             break;
     }
     return processed;
 }
 
+static int _ds1963s_read_scratchpad(const unsigned char *bytes, size_t count, 
+        unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
+
+    int addr;
+    ds1963s_data *pdata = (ds1963s_data*)button->data;
+    unsigned short data_crc16;
+
+    DS_DBG_PRINT("DS1963S: read scratchpad\n");
+    out[1] = pdata->TA1;
+    out[2] = pdata->TA2;
+    if (pdata->HIDE == 1) {
+        memset(&out[4], 0xFF, count-4);
+    } else {
+        addr = pdata->TA1 & 0x1F;
+        DS_DBG_PRINT("Reading scratchpad from address %hx\n", addr);
+        memcpy(&out[4], &pdata->scratchpad[addr], 32-addr);
+        pdata->ES |= 0x1F;
+        out[3] = pdata->ES;
+        data_crc16 = full_crc16(out, 36, 0) ^ 0xffff;
+        out[36] = data_crc16 & 0xff;
+        out[37] = (data_crc16 >> 8) & 0xff;
+        memset(&out[38], 0x55, count-38);
+    }
+    return count;
+}
+
+static int _ds1963s_write_scratchpad(const unsigned char *bytes, size_t count, 
+        unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
+
+    int addr, len;
+    unsigned short data_crc16;
+    ds1963s_data *pdata = (ds1963s_data*)button->data;
+
+    DS_DBG_PRINT("DS1963S: write scratchpad\n");
+    pdata->TA1 = bytes[1];
+    pdata->TA2 = bytes[2];
+    addr = pdata->TA1 + (pdata->TA2 << 8);
+    if (addr < 0x200) {
+        addr = pdata->TA1 & 0x1F;
+        pdata->ES &= 0x1F;
+        len = 32 - addr;
+        DS_DBG_PRINT("Writing scratchpad at address %hx\n", addr);
+        memcpy(&pdata->scratchpad[addr], &bytes[3], len);
+        memcpy(&out[3], &pdata->scratchpad[addr], len);
+        data_crc16 = full_crc16(out, 35, 0) ^ 0xffff;
+        out[35] = data_crc16 & 0xff;
+        out[36] = (data_crc16 >> 8) & 0xff;
+    }
+    return count;
+}
+
+static int _ds1963s_erase_scratchpad(const unsigned char *bytes, size_t count, 
+        unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
+
+    ds1963s_data *pdata = (ds1963s_data*)button->data;
+
+    DS_DBG_PRINT("DS1963S: erase scratchpad\n");
+    pdata->TA1 = bytes[1];
+    pdata->TA2 = bytes[2];
+    memset(pdata->scratchpad, 0xFF, 32);
+    pdata->HIDE = 0;
+    memset(&out[3], 0x55, count-3);
+    return count;
+}
+
+static int _ds1963s_copy_scratchpad(const unsigned char *bytes, size_t count, 
+        unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
+
+    int addr;
+    ds1963s_data *pdata = (ds1963s_data*)button->data;
+
+    pdata->CHLG = 0;
+    pdata->AUTH = 0;
+    addr = pdata->TA1 + (pdata->TA2 << 8);
+    *outsize = count;
+    // check HIDE flag and proper address
+    if (    !(pdata->HIDE == 1 && addr >= 0x200 && addr < 0x23F)
+         && !(pdata->HIDE == 0 && addr < 0x200) ) {
+        memset(&out[4], 0xFF, count-4);
+        return count;
+    }
+    // address registers should be exactly what was provided
+    // by read scratchpad
+    if (bytes[1] != pdata->TA1 || bytes[2] != pdata->TA2 || 
+            bytes[3] != pdata->ES) {
+        DS_DBG_PRINT("DS1963S: copy scratchpad -- Address registers do not match!\n");
+        memset(&out[4], 0xFF, count-4);
+        return count;
+    }
+    pdata->ES |= 0x80; // auth accepted
+    if (pdata->HIDE == 0) {
+        memcpy(&pdata->nvram[addr], pdata->scratchpad, pdata->ES & 0x1F);
+    } else {
+        memcpy(&pdata->secrets[addr - 0x200], pdata->scratchpad, pdata->ES & 0x1F);
+    }
+    // XXX: W/C counters
+    memset(&out[4], 0x55, count-4);
+    return count;
+}
+
+static int _ds1963s_read_auth_page(const unsigned char *bytes, size_t count, 
+        unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
+
+    int page;
+    unsigned short data_crc16;
+    ds1963s_data *pdata = (ds1963s_data*)button->data;
+
+    DS_DBG_PRINT("DS1963S: read auth page\n");
+    pdata->TA1 = bytes[1];
+    pdata->TA2 = bytes[2];
+    page = (pdata->TA1 + (pdata->TA2 << 8)) / 32;
+    out[1] = pdata->TA1;
+    out[2] = pdata->TA2;
+    _ds1963s_read_nvram(&out[3], 32, button, 1);
+    data_crc16 = full_crc16(out, 43, 0) ^ 0xffff;
+    out[43] = data_crc16 & 0xff;
+    out[44] = (data_crc16 >> 8) & 0xff;
+    memset(&out[45], 0x55, count-45);
+
+    pdata->TA1 = pdata->TA2 = 0; 
+    pdata->CHLG = pdata->AUTH = 0;
+    return count;
+}
+
 static int ds1963s_process_memory(const unsigned char *bytes, size_t count, 
         unsigned char *out, size_t *outsize, int overdrive, ibutton_t *button) {
-    int addr, len, page;
     unsigned short data_crc16;
     ds1963s_data *pdata = (ds1963s_data*)button->data;
 
@@ -152,99 +285,24 @@ static int ds1963s_process_memory(const unsigned char *bytes, size_t count,
             memset(&out[6], 0x55, count-6);
             break;
         case 0xAA: // read scratchpad
-            DS_DBG_PRINT("DS1963S: read scratchpad\n");
-            out[1] = pdata->TA1;
-            out[2] = pdata->TA2;
-            if (pdata->HIDE == 1) {
-                memset(&out[4], 0xFF, count-4);
-            } else {
-                addr = pdata->TA1 & 0x1F;
-                DS_DBG_PRINT("Reading scratchpad from address %hx\n", addr);
-                memcpy(&out[4], &pdata->scratchpad[addr], 32-addr);
-                pdata->ES |= 0x1F;
-                out[3] = pdata->ES;
-                data_crc16 = full_crc16(out, 36, 0) ^ 0xffff;
-                out[36] = data_crc16 & 0xff;
-                out[37] = (data_crc16 >> 8) & 0xff;
-                memset(&out[38], 0x55, count-38);
-            }
-            *outsize = count;
+            *outsize = _ds1963s_read_scratchpad(bytes, count, out, outsize, overdrive, button);
             break;
         case 0x0F: // write scratchpad
-            DS_DBG_PRINT("DS1963S: write scratchpad\n");
-            pdata->TA1 = bytes[1];
-            pdata->TA2 = bytes[2];
-            addr = pdata->TA1 + (pdata->TA2 << 8);
-            if (addr < 0x200) {
-                addr = pdata->TA1 & 0x1F;
-                pdata->ES &= 0x1F;
-                len = 32 - addr;
-                DS_DBG_PRINT("Writing scratchpad at address %hx\n", addr);
-                memcpy(&pdata->scratchpad[addr], &bytes[3], len);
-                memcpy(&out[3], &pdata->scratchpad[addr], len);
-                data_crc16 = full_crc16(out, 35, 0) ^ 0xffff;
-                out[35] = data_crc16 & 0xff;
-                out[36] = (data_crc16 >> 8) & 0xff;
-            }
-            *outsize = count;
+            *outsize = _ds1963s_write_scratchpad(bytes, count, out, outsize, overdrive, button);
             break;
         case 0xC3: // erase scratchpad
-            DS_DBG_PRINT("DS1963S: erase scratchpad\n");
-            pdata->TA1 = bytes[1];
-            pdata->TA2 = bytes[2];
-            memset(pdata->scratchpad, 0xFF, 32);
-            pdata->HIDE = 0;
-            memset(&out[3], 0x55, count-3);
-            *outsize = count;
+            *outsize = _ds1963s_erase_scratchpad(bytes, count, out, outsize, overdrive, button);
             break;
         case 0x55: // copy scratchpad
-            pdata->CHLG = 0;
-            pdata->AUTH = 0;
-            addr = pdata->TA1 + (pdata->TA2 << 8);
-            *outsize = count;
-            // check HIDE flag and proper address
-            if (    !(pdata->HIDE == 1 && addr >= 0x200 && addr < 0x23F)
-                 && !(pdata->HIDE == 0 && addr < 0x200) ) {
-                memset(&out[4], 0xFF, count-4);
-                break;
-            }
-            // address registers should be exactly what was provided
-            // by read scratchpad
-            if (bytes[1] != pdata->TA1 || bytes[2] != pdata->TA2 || 
-                    bytes[3] != pdata->ES) {
-                DS_DBG_PRINT("DS1963S: copy scratchpad -- Address registers do not match!\n");
-                memset(&out[4], 0xFF, count-4);
-                break;
-            }
-            pdata->ES |= 0x80; // auth accepted
-            if (pdata->HIDE == 0) {
-                memcpy(&pdata->nvram[addr], pdata->scratchpad, pdata->ES & 0x1F);
-            } else {
-                memcpy(&pdata->secrets[addr - 0x200], pdata->scratchpad, pdata->ES & 0x1F);
-            }
-            memset(&out[4], 0x55, count-4);
+            *outsize = _ds1963s_copy_scratchpad(bytes, count, out, outsize, overdrive, button);
             break;
         case 0xA5: // read auth page
-            DS_DBG_PRINT("DS1963S: read auth page\n");
-            pdata->TA1 = bytes[1];
-            pdata->TA2 = bytes[2];
-            page = (pdata->TA1 + (pdata->TA2 << 8)) / 32;
-            out[1] = pdata->TA1;
-            out[2] = pdata->TA2;
-            _ds1963s_read_nvram(&out[3], 32, button, 1);
-            data_crc16 = full_crc16(out, 43, 0) ^ 0xffff;
-            out[43] = data_crc16 & 0xff;
-            out[44] = (data_crc16 >> 8) & 0xff;
-            memset(&out[45], 0x55, count-45);
-
-            pdata->TA1 = pdata->TA2 = 0; 
-            pdata->CHLG = pdata->AUTH = 0;
-            *outsize = count;
+            *outsize = _ds1963s_read_auth_page(bytes, count, out, outsize, overdrive, button);
             break;
         default:
             DS_DBG_PRINT("DS1963S: unimplemented mem cmd: 0x%x\n", out[0]);
-            pdata->cmd_state = CMD_ROM;
-            return 1;
+            memset(&out[1], 0xFF, count-1);
+            break;
     }
     pdata->cmd_state = CMD_ROM;
     return count;
