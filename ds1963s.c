@@ -328,16 +328,22 @@ static int ds1963s_reset_pulse(ibutton_t *button) {
     return 1;
 }
 
-int ds1963s_init(ibutton_t *button, unsigned char *rom) {
+ibutton_t *ds1963s_init(unsigned char *rom) {
     ds1963s_data *pdata;
+    ibutton_t *button = DS_MALLOC(sizeof(ibutton_t));
+    if (!button)
+        return NULL;
 
     button->process = ds1963s_process;
     button->reset_pulse = ds1963s_reset_pulse;
     memcpy(button->rom, rom, 8);
     button->data = DS_MALLOC(sizeof(ds1963s_data));
-    if (!button->data)
-        return -1;
+    if (!button->data) {
+        DS_FREE(button);
+        return NULL;
+    }
     memset(button->data, 0x0, sizeof(ds1963s_data));
+
     pdata = button->data;
 
     pdata->cmd_state = CMD_ROM;
@@ -345,9 +351,10 @@ int ds1963s_init(ibutton_t *button, unsigned char *rom) {
     pdata->TA1 = pdata->TA2 = pdata->ES = 0;
     pdata->MATCH = 0;
 
-    return 0;
+    return button;
 }
 
 void ds1963s_destroy(ibutton_t *button) {
     DS_FREE(button->data);
+    DS_FREE(button);
 }

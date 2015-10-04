@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include "ds2480sim.h"
 #include "ds1963s.h"
 #include "extern/crcutil.h"
@@ -45,46 +46,53 @@ int main() {
     size_t outlen;
 
 
-    ibutton_t button;
-    ds1963s_init(&button, rom);
+    ibutton_t *button = ds1963s_init(rom);
+    if (!button) {
+        perror("ds1963s_init");
+        return 1;
+    }
 
-    ds2480_state_t ds2480;
-    ds2480_init(&ds2480, &button);
+    ds2480_state_t *ds2480 = ds2480_init(button);
+    if (!ds2480) {
+        perror("ds2480_init");
+        ds1963s_destroy(button);
+        return 1;
+    }
 
     ///////
     outlen = 512;
     print_hex(timing_buf, 1);
-    ds2480_process(timing_buf, 1, outbuf, &outlen, &ds2480);
+    ds2480_process(timing_buf, 1, outbuf, &outlen, ds2480);
     printf("outlen 1: %d\n", outlen);
     print_hex(outbuf, outlen);
 
     outlen = 512;
     print_hex(detect_buf, 5);
-    ds2480_process(detect_buf, 5, outbuf, &outlen, &ds2480);
+    ds2480_process(detect_buf, 5, outbuf, &outlen, ds2480);
     printf("outlen 2: %d\n", outlen);
     print_hex(outbuf, outlen);
 
     outlen = 512;
     print_hex(searchaccel_buf, sizeof(searchaccel_buf));
-    ds2480_process(searchaccel_buf, sizeof(searchaccel_buf), outbuf, &outlen, &ds2480);
+    ds2480_process(searchaccel_buf, sizeof(searchaccel_buf), outbuf, &outlen, ds2480);
     printf("outlen 2: %d\n", outlen);
     print_hex(outbuf, outlen);
 
     outlen = 512;
     print_hex(overdrive_buf, sizeof(overdrive_buf));
-    ds2480_process(overdrive_buf, sizeof(overdrive_buf), outbuf, &outlen, &ds2480);
+    ds2480_process(overdrive_buf, sizeof(overdrive_buf), outbuf, &outlen, ds2480);
     printf("outlen 2: %d\n", outlen);
     print_hex(outbuf, outlen);
 
     outlen = 512;
     print_hex(searchrom_buf, sizeof(searchrom_buf));
-    ds2480_process(searchrom_buf, sizeof(searchrom_buf), outbuf, &outlen, &ds2480);
+    ds2480_process(searchrom_buf, sizeof(searchrom_buf), outbuf, &outlen, ds2480);
     printf("outlen 2: %d\n", outlen);
     print_hex(outbuf, outlen);
 
     outlen = 512;
     print_hex(idontknow_buf, sizeof(idontknow_buf));
-    ds2480_process(idontknow_buf, sizeof(idontknow_buf), outbuf, &outlen, &ds2480);
+    ds2480_process(idontknow_buf, sizeof(idontknow_buf), outbuf, &outlen, ds2480);
     printf("outlen 2: %d\n", outlen);
     print_hex(outbuf, outlen);
 
@@ -94,6 +102,9 @@ int main() {
 
     crc2 = full_crc16(what, 1, 0);
     printf("crc2 = %hx\n", crc2);
+
+    ds2480_destroy(ds2480);
+    ds1963s_destroy(button);
 
     return 0;
 }

@@ -30,10 +30,13 @@ void ds2480_soft_reset(ds2480_state_t *state) {
     state->search_rom_len = 0;
 }
 
-int ds2480_init(ds2480_state_t *state, ibutton_t *button) {
+ds2480_state_t *ds2480_init(ibutton_t *button) {
+    ds2480_state_t *state = DS_MALLOC(sizeof(ds2480_state_t));
+    if (!state)
+        return NULL;
     state->button = button;
     ds2480_master_reset(state);
-    return 0;
+    return state;
 }
 
 #define OPUSH(b) { if (*outsize >= max_out-1) return -1; out[(*outsize)++] = (b); }
@@ -198,5 +201,6 @@ int ds2480_process(const unsigned char *bytes, size_t count,
 }
 
 void ds2480_destroy(ds2480_state_t *state) {
+    DS_FREE(state);
     return;
 }

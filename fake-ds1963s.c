@@ -42,7 +42,7 @@ typedef struct {
     struct tty_port port;
     int open_count;
     struct mutex m;
-    ds2480_state_t state;
+    ds2480_state_t *state;
 } _fake_serial_info;
 static _fake_serial_info *g_serial_info = NULL;
 
@@ -77,7 +77,7 @@ static int fakeds1963s_write(struct tty_struct *tty,
     printk("\n");
     /////////
 
-    ret = ds2480_process(buffer, count, outbuf, &pcount, &g_serial_info->state);
+    ret = ds2480_process(buffer, count, outbuf, &pcount, g_serial_info->state);
 
     ////
     printk(KERN_NOTICE "Read out from fakeds1963s: ");
@@ -108,7 +108,7 @@ static void fakeds1963s_close(struct tty_struct *tty, struct file *filp) {
         --g_serial_info->open_count;
     }
     if (g_serial_info->open_count == 0) {
-        ds2480_master_reset(&g_serial_info->state);
+        ds2480_master_reset(g_serial_info->state);
     }
     mutex_unlock(&g_serial_info->m);
 }
@@ -134,29 +134,42 @@ static int __init fakeds1963s_init(void) {
 
     g_serial_info = kmalloc(sizeof(_fake_serial_info), GFP_KERNEL);
     if (!g_serial_info) {
+        printk(KERN_WARNING "Could not allocate g_serial_info\n");
         return -ENOMEM;
     }
 
     mutex_init(&g_serial_info->m);
     g_serial_info->open_count = 0;
     tty_port_init(&g_serial_info->port);
-    button = kmalloc(sizeof(ibutton_t), GFP_KERNEL);
-    ds1963s_init(button, ROM);
-    ds2480_init(&g_serial_info->state, button);
+    button = ds1963s_init(ROM);
+    if (!button) {
+        printk(KERN_WARNING "Could not allocate ds1963s state\n");
+        return -ENOMEM;
+    }
+    g_serial_info->state = ds2480_init(button);
+    if (!g_serial_info->state) {
+        printk(KERN_WARNING "Could not allocate ds2480 state\n");
+        ds1963s_destroy(button);
+        return -ENOMEM;
+    }
 
     fake_tty_driver = tty_alloc_driver(1, 
         TTY_DRIVER_REAL_RAW
         |TTY_DRIVER_RESET_TERMIOS
         |TTY_DRIVER_UNNUMBERED_NODE);
-    if (IS_ERR(fake_tty_driver)) {
-        tty_port_destroy(&g_serial_info->port);
-        kfree(g_serial_info);
-        return PTR_ERR(fake_tty_driver);
-    }
     if (!fake_tty_driver) {
         tty_port_destroy(&g_serial_info->port);
+        ds2480_destroy(g_serial_info->state);
+        ds1963s_destroy(button);
         kfree(g_serial_info);
         return -ENOMEM;
+    }
+    if (IS_ERR(fake_tty_driver)) {
+        tty_port_destroy(&g_serial_info->port);
+        ds2480_destroy(g_serial_info->state);
+        ds1963s_destroy(button);
+        kfree(g_serial_info);
+        return PTR_ERR(fake_tty_driver);
     }
     fake_tty_driver->driver_name = "fakeds1963s";
     fake_tty_driver->magic = TTY_DRIVER_MAGIC;
@@ -178,6 +191,8 @@ static int __init fakeds1963s_init(void) {
     ret = tty_register_driver(fake_tty_driver);
     if (ret) {
         printk(KERN_ERR "fakeds1963s: tty_register_driver failed\n");
+        ds2480_destroy(g_serial_info->state);
+        ds1963s_destroy(button);
         return ret;
     }
 
@@ -189,6 +204,8 @@ static void __exit fakeds1963s_exit(void) {
     tty_unregister_driver(fake_tty_driver);
     put_tty_driver(fake_tty_driver);
     tty_port_destroy(&g_serial_info->port);
+    ds2480_destroy(g_serial_info->state);
+    ds1963s_destroy(g_serial_info->state->button);
     kfree(g_serial_info);
     printk(KERN_INFO "fakeds1963s: unloaded\n");
 }
