@@ -89,11 +89,8 @@ SMALLINT OpenCOM(int portnum, char *port_zstr)
     unsigned char rom[8] = {0x18, // family code
     '0', '1', '2', '7', '0', '7',
     0x55}; // CRC8
-    ibutton_t *button = (ibutton_t*)malloc(sizeof(ibutton_t));
-    g_state = (ds2480_state_t*)malloc(sizeof(ds2480_state_t));
-
-    ds1963s_init(button, rom);
-    ds2480_init(g_state, button);
+    ibutton_t *button = ds1963s_init(rom);
+    g_state = ds2480_init(button);
 
     return TRUE;
 }
@@ -109,7 +106,6 @@ void CloseCOM(int portnum)
 {
     ds1963s_destroy(g_state->button);
     ds2480_destroy(g_state);
-    free(g_state);
     g_state = NULL;
 }
 

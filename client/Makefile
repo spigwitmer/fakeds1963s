@@ -44,26 +44,26 @@ ow/lib/userial/shared/owtrnu.c \
 ow/lib/userial/shared/ds2480ut.c \
 ow/lib/userial/shared/owsesu.c \
 ow/lib/userial/shared/owllu.c \
-ow/lib/userial/link/Linux/linuxlnk.c
+ow/lib/userial/link/Simulated/simlink.c
 
 # symlink these from the main project
-ds2480sim_objects := ds2480sim.c ds1963s.c extern/crcutil.c extern/sha1.c
+ds2480sim_objects := ds2480sim.c ds1963s.c crcutil.c sha1.c
 
 all: lib1w.a test1w
 lib1w.a: $(lib1w_objects:.c=.o)
 	ar rcs $@ $^
 
-ds2480-obj:
-	[ ! -e ds2480sim.c ] && ln -s ../ds2480sim.c .
-	[ ! -e ds1963s.c ] && ln -s ../ds1963s.c .
-	[ ! -e extern ] && ln -s ../extern .
-
 ds2480sim.a: $(ds2480sim_objects:.c=.o)
 	ar rcs $@ $^
 
+$(ds2480sim_objects):
+	[ -e ds2480sim.c ] || ln -s ../ds2480sim.c .
+	[ -e ds1963s.c ] || ln -s ../ds1963s.c .
+	[ -e crcutil.c ] || ln -s ../extern/crcutil.c .
+	[ -e sha1.c ] || ln -s ../extern/sha1.c .
+
 %.o: %.c
-	[ -e extern ] || make ds2480-obj
-	gcc -fPIC -I.. -Iow/common/ -Iow/lib/userial/shared/ -c -O0 -g3 $^ -o $@
+	gcc -fPIC -I.. -I../extern/ -Iow/common/ -Iow/lib/userial/shared/ -c -O0 -g3 $^ -o $@
 
 test1w: test1w.o lib1w.a ds2480sim.a
 	gcc -fPIC -lm -O0 -g3 lib1w.a ds2480sim.a $^ -o $@
