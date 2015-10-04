@@ -7,14 +7,22 @@
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <linux/slab.h>
-#define DS_DBG_PRINT(fmt, ...) printk(KERN_INFO "fakeds1963s: " fmt, ##__VA_ARGS__)
+#ifdef DEBUG
+#define DS_DBG_PRINT(fmt, ...) ;
+#else
+#define DS_DBG_PRINT(fmt, ...) printk(KERN_DEBUG "fakeds1963s: " fmt, ##__VA_ARGS__)
+#endif
 #define DS_FREE kfree
 #define DS_MALLOC(x) kmalloc((x), GFP_KERNEL)
 #else
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#ifdef DEBUG
+#define DS_DBG_PRINT(fmt, ...) ;
+#else
 #define DS_DBG_PRINT(fmt, ...) printf("[FAKEDS1963S] " fmt, ##__VA_ARGS__)
+#endif
 #define DS_FREE free
 #define DS_MALLOC(x) malloc((x))
 #endif
