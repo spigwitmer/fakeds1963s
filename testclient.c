@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "ds2480sim.h"
 #include "ds1963s.h"
-#include "crcutil.h"
+#include "extern/crcutil.h"
 
 void print_hex(unsigned char *out, size_t len) {
     int i;
@@ -13,7 +13,7 @@ void print_hex(unsigned char *out, size_t len) {
 }
 
 int main() {
-    unsigned char rom[8] = {0x00, '0', '1', '2', '7', '0', '7', 0x18};
+    unsigned char rom[8] = {0x18, '0', '1', '2', '7', '0', '7', 0x55};
     unsigned short crc, crc2;
     unsigned char what[] = {0xa5};
     unsigned char timing_buf[1] = {0xC1}, 

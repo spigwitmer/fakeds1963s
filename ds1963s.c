@@ -1,7 +1,7 @@
 #include "ds2480sim.h"
 #include "ds1963s.h"
-#include "crcutil.h"
-#include "sha1.h"
+#include "extern/crcutil.h"
+#include "extern/sha1.h"
 
 typedef enum {
     CMD_ROM,

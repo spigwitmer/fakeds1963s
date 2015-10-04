@@ -1,15 +1,12 @@
-all: testclient testclient2
+all: testclient
 
-testclient2: testclient2.o cli-out/ds2480sim.o cli-out/ds1963s.o cli-out/crcutil.o cli-out/sha1.o
-	gcc -O0 -g3 $^ -o testclient2
-
-testclient: testclient.o cli-out/ds2480sim.o cli-out/ds1963s.o cli-out/crcutil.o cli-out/sha1.o
+testclient: testclient.o cli-out/ds2480sim.o cli-out/ds1963s.o cli-out/extern/crcutil.o cli-out/extern/sha1.o
 	gcc -O0 -g3 $^ -o testclient
 
-cli-out:
-	mkdir -p cli-out
+cli-out/extern:
+	mkdir -p cli-out/extern
 
-cli-out/%.o: %.c cli-out
+cli-out/%.o: %.c cli-out/extern
 	gcc -c -O0 -g3 $< -o $@
 
 %.o: %.c
