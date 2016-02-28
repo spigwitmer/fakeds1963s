@@ -14,7 +14,7 @@ struct _ds1963s_data {
     unsigned char scratchpad[32];
     unsigned int nvram_counter[8]; // W/C counters
     unsigned int secret_counter[8];
-    unsigned char TA1, TA2, ES; // registers
+    unsigned char TA1, TA2, LATCH_ES; // registers
     unsigned char AUTH, CHLG, HIDE, RC, MATCH; // internal flags
     unsigned char SEC; // latch
     ds1963s_cmd_state cmd_state;
@@ -159,8 +159,8 @@ static int _ds1963s_read_scratchpad(const unsigned char *bytes, size_t count,
         addr = pdata->TA1 & 0x1F;
         DS_DBG_PRINT("Reading scratchpad from address %hx\n", addr);
         memcpy(&out[4], &pdata->scratchpad[addr], 32-addr);
-        pdata->ES |= 0x1F;
-        out[3] = pdata->ES;
+        pdata->LATCH_ES |= 0x1F;
+        out[3] = pdata->LATCH_ES;
         data_crc16 = full_crc16(out, 36, 0) ^ 0xffff;
         out[36] = data_crc16 & 0xff;
         out[37] = (data_crc16 >> 8) & 0xff;
@@ -182,7 +182,7 @@ static int _ds1963s_write_scratchpad(const unsigned char *bytes, size_t count,
     addr = pdata->TA1 + (pdata->TA2 << 8);
     if (addr < 0x200) {
         addr = pdata->TA1 & 0x1F;
-        pdata->ES &= 0x1F;
+        pdata->LATCH_ES &= 0x1F;
         len = 32 - addr;
         DS_DBG_PRINT("Writing scratchpad at address %hx\n", addr);
         memcpy(&pdata->scratchpad[addr], &bytes[3], len);
@@ -227,16 +227,16 @@ static int _ds1963s_copy_scratchpad(const unsigned char *bytes, size_t count,
     // address registers should be exactly what was provided
     // by read scratchpad
     if (bytes[1] != pdata->TA1 || bytes[2] != pdata->TA2 || 
-            bytes[3] != pdata->ES) {
+            bytes[3] != pdata->LATCH_ES) {
         DS_DBG_PRINT("DS1963S: copy scratchpad -- Address registers do not match!\n");
         memset(&out[4], 0xFF, count-4);
         return count;
     }
-    pdata->ES |= 0x80; // auth accepted
+    pdata->LATCH_ES |= 0x80; // auth accepted
     if (pdata->HIDE == 0) {
-        memcpy(&pdata->nvram[addr], pdata->scratchpad, pdata->ES & 0x1F);
+        memcpy(&pdata->nvram[addr], pdata->scratchpad, pdata->LATCH_ES & 0x1F);
     } else {
-        memcpy(&pdata->secrets[addr - 0x200], pdata->scratchpad, pdata->ES & 0x1F);
+        memcpy(&pdata->secrets[addr - 0x200], pdata->scratchpad, pdata->LATCH_ES & 0x1F);
     }
     // XXX: W/C counters
     memset(&out[4], 0x55, count-4);
@@ -406,7 +406,7 @@ ibutton_t *ds1963s_init(unsigned char *rom) {
 
     pdata->cmd_state = CMD_ROM;
     pdata->HIDE = pdata->CHLG = pdata->AUTH = 0;
-    pdata->TA1 = pdata->TA2 = pdata->ES = 0;
+    pdata->TA1 = pdata->TA2 = pdata->LATCH_ES = 0;
     pdata->MATCH = 0;
 
     return button;
