@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
 
         memcpy(&firstScratchPad[8], &subkey[32], 15);
 
-        copr.portnum = owAcquireEx("/dev/tty1963s");
+        copr.portnum = owAcquireEx(getenv("OWPORT") ?: "/dev/tty1963s");
         if (copr.portnum == -1) {
             printf("portnum is -1, bad...\n");
             while (owHasErrors()) {

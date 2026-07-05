@@ -9,3 +9,4 @@ DS1963S simulator
 
 ibutton_t *ds1963s_init(unsigned char *rom);
 void ds1963s_destroy(ibutton_t *button);
+void ds1963s_reset(ibutton_t *button);

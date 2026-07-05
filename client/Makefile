@@ -49,7 +49,7 @@ ow/lib/userial/link/Simulated/simlink.c
 # symlink these from the main project
 ds2480sim_objects := ds2480sim.c ds1963s.c crcutil.c sha1.c
 
-all: lib1w.a test1w
+all: lib1w.a test1w fakeds1963s
 lib1w.a: $(lib1w_objects:.c=.o)
 	ar rcs $@ $^
 
@@ -65,8 +65,14 @@ $(ds2480sim_objects):
 %.o: %.c
 	gcc -fPIC -I.. -I../extern/ -Iow/common/ -Iow/lib/userial/shared/ -c -O0 -g3 $^ -o $@
 
+fakeds1963s.o: ../fakeds1963s.c $(ds2480sim_objects)
+	gcc -fPIC -I.. -I../extern/ -c -O0 -g3 $< -o $@
+
 test1w: test1w.o lib1w.a ds2480sim.a
 	gcc -fPIC -lm -O0 -g3 lib1w.a ds2480sim.a $^ -o $@
 
+fakeds1963s: fakeds1963s.o ds2480sim.a
+	gcc -fPIC -lpthread -O0 -g3 $< ds2480sim.a -o $@
+
 clean:
-	rm -f $(lib1w_objects:.c=.o) $(ds2480sim_objects:.c=.o) lib1w.a ds2480sim.a test1w test1w.o
+	rm -f $(lib1w_objects:.c=.o) $(ds2480sim_objects:.c=.o) lib1w.a ds2480sim.a test1w test1w.o fakeds1963s fakeds1963s.o

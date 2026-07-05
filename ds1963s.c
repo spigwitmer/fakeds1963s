@@ -416,3 +416,18 @@ void ds1963s_destroy(ibutton_t *button) {
     DS_FREE(button->data);
     DS_FREE(button);
 }
+
+void ds1963s_reset(ibutton_t *button) {
+    ds1963s_data *pdata;
+    if (!button || !button->data)
+        return;
+
+    memset(button->data, 0x0, sizeof(ds1963s_data));
+
+    pdata = button->data;
+
+    pdata->cmd_state = CMD_ROM;
+    pdata->HIDE = pdata->CHLG = pdata->AUTH = 0;
+    pdata->TA1 = pdata->TA2 = pdata->LATCH_ES = 0;
+    pdata->MATCH = 0;
+}

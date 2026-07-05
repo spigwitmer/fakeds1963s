@@ -121,7 +121,7 @@ static int ds2480_process_search_rom(unsigned char *out, ds2480_state_t *state) 
     return 0;
 }
 
-static int ds2480_process_data(const unsigned char *bytes, size_t count, 
+static int ds2480_process_data(const unsigned char *bytes, size_t count,
             unsigned char *out, size_t *outsize, ds2480_state_t *state) {
     int i, switch_to_command = 0;
     size_t pcount = 0, num_cmd_bytes = 0;
@@ -132,7 +132,9 @@ static int ds2480_process_data(const unsigned char *bytes, size_t count,
         Preprocess the data.
         A MODE_COMMAND while in data mode results in "check mode"...
         if a second MODE_COMMAND byte follows, it's a single data byte,
-        otherwise it's a legitimate switch back to Command mode
+        otherwise it's a legitimate switch back to Command mode.
+        The DS2480 timing byte (0xC1) is a special case: it is
+        implicitly a CMD byte and switches the chip back to COMMAND mode.
     */
     processed = DS_MALLOC(count);
     if (!processed)
@@ -149,6 +151,15 @@ static int ds2480_process_data(const unsigned char *bytes, size_t count,
                 pcount--;
                 break;
             }
+        } else if (bytes[i] == 0xC1) {
+            /* Timing byte is implicitly a CMD byte. Discard it from
+             * the data stream and switch back to COMMAND mode.
+             * Also reset the baud-rate config register, which the
+             * real DS2480B does after a timing-byte reset. */
+            state->config[PARMSEL_BAUDRATE >> 4] = PARMSET_9600;
+            switch_to_command = 1;
+            pcount--;
+            break;
         }
     }
 
